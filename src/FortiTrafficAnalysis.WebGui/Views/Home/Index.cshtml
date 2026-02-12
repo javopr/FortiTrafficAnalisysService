@@ -1,0 +1,82 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="px-4 py-5 my-5 text-center">
+    <i class="bi bi-shield-check display-1 text-primary"></i>
+    <h1 class="display-5 fw-bold">FortiGate Traffic Analysis Service</h1>
+    <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">
+            Analyze FortiGate firewall traffic logs for multiple customers with advanced filtering and policy recommendations.
+        </p>
+        <p class="text-muted">
+            <strong>Author:</strong> javier.morales@intwo.cloud<br />
+            <strong>Organization:</strong> INTEGRATION TECHNOLOGIES CORP.
+        </p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+            <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container px-4 py-5">
+    <h2 class="pb-2 border-bottom">Key Features</h2>
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-primary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-cloud-upload"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Log Upload & Analysis</h3>
+                <p>Upload FortiGate traffic logs and analyze them with powerful filtering capabilities.</p>
+            </div>
+        </div>
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-success d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-funnel"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Advanced Filtering</h3>
+                <p>Filter traffic by date range, IP addresses, ports, protocols, and policy actions.</p>
+            </div>
+        </div>
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-warning d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-lightbulb"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Policy Recommendations</h3>
+                <p>Get intelligent firewall policy recommendations based on denied traffic patterns.</p>
+            </div>
+        </div>
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-info d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-people"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Multi-Tenant</h3>
+                <p>Designed for multiple customers with complete data isolation and security.</p>
+            </div>
+        </div>
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-danger d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-shield-lock"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Azure AD Security</h3>
+                <p>Enterprise-grade authentication and role-based access control.</p>
+            </div>
+        </div>
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-bg-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3" style="width: 3rem; height: 3rem; border-radius: 0.5rem;">
+                <i class="bi bi-gear"></i>
+            </div>
+            <div>
+                <h3 class="fs-2">Device Management</h3>
+                <p>Manage FortiGate devices, service contracts, and customer information.</p>
+            </div>
+        </div>
+    </div>
+</div>

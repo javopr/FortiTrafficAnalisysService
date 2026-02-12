@@ -1,0 +1,73 @@
+@model FortiTrafficAnalysis.Domain.Entities.FortiGate
+
+@{
+    ViewData["Title"] = "Delete FortiGate Device";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="bi bi-trash"></i> Delete FortiGate Device</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Warning!</strong> Are you sure you want to delete this FortiGate device?
+                    </div>
+
+                    <dl class="row">
+                        <dt class="col-sm-4">FG Name:</dt>
+                        <dd class="col-sm-8"><strong>@Model.FGHostname</strong></dd>
+
+                        <dt class="col-sm-4">IP Address:</dt>
+                        <dd class="col-sm-8"><code>@Model.FGHost</code></dd>
+
+                        <dt class="col-sm-4">Serial Number:</dt>
+                        <dd class="col-sm-8"><code>@Model.FGSerial</code></dd>
+
+                        <dt class="col-sm-4">Customer:</dt>
+                        <dd class="col-sm-8">@Model.FTAService.Customer.CustomerName</dd>
+
+                        <dt class="col-sm-4">Service:</dt>
+                        <dd class="col-sm-8"><code>@Model.FTAService.JobID</code></dd>
+
+                        <dt class="col-sm-4">Traffic Logs:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-info">@Model.TrafficLogs.Count log(s)</span>
+                        </dd>
+                    </dl>
+
+                    @if (Model.TrafficLogs.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <i class="bi bi-x-circle"></i>
+                            This device cannot be deleted because it has <strong>@Model.TrafficLogs.Count</strong> associated traffic log(s).
+                            Please delete the traffic logs first.
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to List
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="Delete" method="post">
+                            <input type="hidden" asp-for="FGID" />
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                <a asp-action="Index" class="btn btn-secondary">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </a>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="bi bi-trash"></i> Delete Device
+                                </button>
+                            </div>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,72 @@
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4">Welcome to FortiGate Traffic Analysis Service</h1>
+            <p class="lead">Hello, @User.Identity?.Name</p>
+            <hr class="my-4">
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card border-primary mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Traffic Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Upload and analyze FortiGate traffic logs, filter by various criteria, and get policy recommendations.</p>
+                    <a href="@Url.Action("Index", "TrafficLogs")" class="btn btn-primary">Go to Traffic Logs</a>
+                </div>
+            </div>
+        </div>
+
+        @if (User.IsInRole("Admins"))
+        {
+            <div class="col-md-6">
+                <div class="card border-danger mb-3">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Administration</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Manage users, customers, services, and FortiGate devices.</p>
+                        <a href="@Url.Action("Index", "Admin")" class="btn btn-danger">Go to Admin Panel</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h3 class="text-primary">0</h3>
+                            <p>Total Logs</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-success">0</h3>
+                            <p>Allowed</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-danger">0</h3>
+                            <p>Denied</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-info">0</h3>
+                            <p>Recommendations</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

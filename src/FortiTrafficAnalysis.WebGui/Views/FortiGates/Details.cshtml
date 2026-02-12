@@ -1,0 +1,83 @@
+@model FortiTrafficAnalysis.Domain.Entities.FortiGate
+
+@{
+    ViewData["Title"] = "FortiGate Device Details";
+    var apiKeyDisplay = Model.FGapiKey?.Length > 4 
+        ? $"{Model.FGapiKey.Substring(0, 2)}••••••••••••{Model.FGapiKey.Substring(Model.FGapiKey.Length - 2)}" 
+        : "••••••••••••••••";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0"><i class="bi bi-shield-check"></i> FortiGate Device Details</h4>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">FG Name:</dt>
+                        <dd class="col-sm-9"><strong>@Model.FGHostname</strong></dd>
+
+                        <dt class="col-sm-3">IP Address / Host:</dt>
+                        <dd class="col-sm-9"><code>@Model.FGHost</code></dd>
+
+                        <dt class="col-sm-3">Serial Number:</dt>
+                        <dd class="col-sm-9"><code>@Model.FGSerial</code></dd>
+
+                        <dt class="col-sm-3">Virtual Domain:</dt>
+                        <dd class="col-sm-9"><code>@Model.FGvDOM</code></dd>
+
+                        <dt class="col-sm-3">Status:</dt>
+                        <dd class="col-sm-9">
+                            @switch (Model.FGStatus)
+                            {
+                                case "Active":
+                                    <span class="badge bg-success">@Model.FGStatus</span>
+                                    break;
+                                case "Inactive":
+                                    <span class="badge bg-secondary">@Model.FGStatus</span>
+                                    break;
+                                case "Maintenance":
+                                    <span class="badge bg-warning">@Model.FGStatus</span>
+                                    break;
+                                case "Offline":
+                                    <span class="badge bg-danger">@Model.FGStatus</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-info">@Model.FGStatus</span>
+                                    break;
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Customer:</dt>
+                        <dd class="col-sm-9">@Model.FTAService.Customer.CustomerName</dd>
+
+                        <dt class="col-sm-3">Service Job ID:</dt>
+                        <dd class="col-sm-9"><code>@Model.FTAService.JobID</code></dd>
+
+                        <dt class="col-sm-3">Traffic Logs:</dt>
+                        <dd class="col-sm-9">
+                            <span class="badge bg-info">@Model.TrafficLogs.Count log(s)</span>
+                        </dd>
+
+                        <dt class="col-sm-3">API Key:</dt>
+                        <dd class="col-sm-9">
+                            <code class="text-muted">@apiKeyDisplay</code>
+                            <small class="text-muted ms-2">(showing first 2 and last 2 characters)</small>
+                        </dd>
+                    </dl>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to List
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@Model.FGID" class="btn btn-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

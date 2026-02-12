@@ -1,0 +1,122 @@
+@model FortiTrafficAnalysis.Domain.Entities.FTAService
+
+@{
+    ViewData["Title"] = "Service Details";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0"><i class="bi bi-briefcase"></i> Service Details</h4>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Job ID:</dt>
+                        <dd class="col-sm-8"><strong><code>@Model.JobID</code></strong></dd>
+
+                        <dt class="col-sm-4">Customer:</dt>
+                        <dd class="col-sm-8">@Model.Customer.CustomerName</dd>
+
+                        <dt class="col-sm-4">Service Start:</dt>
+                        <dd class="col-sm-8">@Model.ServiceStart.ToString("MMMM dd, yyyy")</dd>
+
+                        <dt class="col-sm-4">Service End:</dt>
+                        <dd class="col-sm-8">
+                            @Model.ServiceEnd.ToString("MMMM dd, yyyy")
+                            @if (Model.ServiceEnd < DateTime.Today)
+                            {
+                                <span class="badge bg-danger ms-2">Expired</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8">
+                            @switch (Model.ServiceStatus)
+                            {
+                                case "Active":
+                                    <span class="badge bg-success">@Model.ServiceStatus</span>
+                                    break;
+                                case "Inactive":
+                                    <span class="badge bg-secondary">@Model.ServiceStatus</span>
+                                    break;
+                                case "Pending":
+                                    <span class="badge bg-warning">@Model.ServiceStatus</span>
+                                    break;
+                                case "Expired":
+                                    <span class="badge bg-danger">@Model.ServiceStatus</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-info">@Model.ServiceStatus</span>
+                                    break;
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4">Service Duration:</dt>
+                        <dd class="col-sm-8">@((Model.ServiceEnd - Model.ServiceStart).Days) days</dd>
+
+                        <dt class="col-sm-4">FortiGate Devices:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-info">@Model.FortiGates.Count device(s)</span>
+                        </dd>
+                    </dl>
+
+                    @if (Model.FortiGates.Any())
+                    {
+                        <hr>
+                        <h5>Associated FortiGate Devices</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>FG Name</th>
+                                        <th>IP Address</th>
+                                        <th>Serial Number</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var device in Model.FortiGates)
+                                    {
+                                        <tr>
+                                            <td><strong>@device.FGHostname</strong></td>
+                                            <td><code>@device.FGHost</code></td>
+                                            <td><code>@device.FGSerial</code></td>
+                                            <td>
+                                                @if (device.FGStatus == "Active")
+                                                {
+                                                    <span class="badge bg-success">@device.FGStatus</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">@device.FGStatus</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <a asp-controller="FortiGates" asp-action="Details" asp-route-id="@device.FGID" 
+                                                   class="btn btn-sm btn-outline-info" title="View Device Details">
+                                                    <i class="bi bi-eye"></i> View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to List
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@Model.FTAID" class="btn btn-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,81 @@
+@model FortiTrafficAnalysis.WebGui.Models.FortiGateViewModel
+
+@{
+    ViewData["Title"] = "Edit FortiGate Device";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-pencil"></i> Edit FortiGate Device</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Edit" method="post">
+                        <input type="hidden" asp-for="FGID" />
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+                        
+                        <div class="mb-3">
+                            <label asp-for="FTAID" class="form-label"></label>
+                            <select asp-for="FTAID" class="form-select" asp-items="ViewBag.Services"></select>
+                            <span asp-validation-for="FTAID" class="text-danger"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="FGHostname" class="form-label"></label>
+                                <input asp-for="FGHostname" class="form-control" />
+                                <span asp-validation-for="FGHostname" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="FGHost" class="form-label"></label>
+                                <input asp-for="FGHost" class="form-control" />
+                                <span asp-validation-for="FGHost" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="FGSerial" class="form-label"></label>
+                                <input asp-for="FGSerial" class="form-control" />
+                                <span asp-validation-for="FGSerial" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="FGvDOM" class="form-label"></label>
+                                <input asp-for="FGvDOM" class="form-control" />
+                                <span asp-validation-for="FGvDOM" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="FGapiKey" class="form-label"></label>
+                            <input asp-for="FGapiKey" class="form-control" type="password" placeholder="Leave blank to keep current API key" />
+                            <span asp-validation-for="FGapiKey" class="text-danger"></span>
+                            <small class="form-text text-muted">Leave blank to keep the existing API key, or enter a new one to update it</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="FGStatus" class="form-label"></label>
+                            <select asp-for="FGStatus" class="form-select" asp-items="ViewBag.StatusOptions"></select>
+                            <span asp-validation-for="FGStatus" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

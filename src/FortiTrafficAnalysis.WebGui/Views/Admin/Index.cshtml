@@ -1,0 +1,157 @@
+@{
+    ViewData["Title"] = "Administration";
+    var stats = ViewBag.Stats;
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-5"><i class="bi bi-gear"></i> Administration</h1>
+            <p class="lead text-muted">Manage users, customers, services, and FortiGate devices</p>
+            <hr class="my-4">
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Users</h6>
+                            <h2 class="mb-0">@stats.TotalUsers</h2>
+                        </div>
+                        <i class="bi bi-people" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Customers</h6>
+                            <h2 class="mb-0">@stats.TotalCustomers</h2>
+                        </div>
+                        <i class="bi bi-building" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Services</h6>
+                            <h2 class="mb-0">@stats.TotalServices</h2>
+                        </div>
+                        <i class="bi bi-briefcase" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">FortiGates</h6>
+                            <h2 class="mb-0">@stats.TotalFortiGates</h2>
+                        </div>
+                        <i class="bi bi-shield-check" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Modules -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> User Management</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Manage application users, assign roles, and control access permissions.</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success"></i> Add/Edit/Delete users</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Assign roles (Admin/User)</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Manage passwords</li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a asp-controller="AppUsers" asp-action="Index" class="btn btn-primary">
+                        <i class="bi bi-arrow-right-circle"></i> Manage Users
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Customer Management</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Manage customer accounts and tenant information in the multi-tenant system.</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success"></i> Add/Edit/Delete customers</li>
+                        <li><i class="bi bi-check-circle text-success"></i> View customer services</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Multi-tenant isolation</li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a asp-controller="Customers" asp-action="Index" class="btn btn-success">
+                        <i class="bi bi-arrow-right-circle"></i> Manage Customers
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-briefcase"></i> Service Management</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Manage FortiGate Traffic Analysis service contracts and their status.</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success"></i> Add/Edit/Delete services</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Track service dates</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Monitor service status</li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a asp-controller="FTAServices" asp-action="Index" class="btn btn-info">
+                        <i class="bi bi-arrow-right-circle"></i> Manage Services
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> FortiGate Devices</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Manage FortiGate firewall devices, API credentials, and device configurations.</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success"></i> Add/Edit/Delete devices</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Store API credentials</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Link to services</li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a asp-controller="FortiGates" asp-action="Index" class="btn btn-warning">
+                        <i class="bi bi-arrow-right-circle"></i> Manage Devices
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

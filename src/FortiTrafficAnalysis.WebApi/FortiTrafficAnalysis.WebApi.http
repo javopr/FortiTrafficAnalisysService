@@ -1,0 +1,6 @@
+@FortiTrafficAnalysis.WebApi_HostAddress = http://localhost:5195
+
+GET {{FortiTrafficAnalysis.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
