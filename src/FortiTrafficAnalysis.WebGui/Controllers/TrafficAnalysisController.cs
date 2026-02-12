@@ -8,6 +8,7 @@ using FortiTrafficAnalysis.Services.Authorization;
 using FortiTrafficAnalysis.WebGui.Models;
 using FortiTrafficAnalysis.Services.LogParsing;
 using FortiTrafficAnalysis.Services;
+using FortiTrafficAnalysis.Services.Recommendations;
 
 namespace FortiTrafficAnalysis.WebGui.Controllers
 {
@@ -18,17 +19,20 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
         private readonly ILogger<TrafficAnalysisController> _logger;
         private readonly IFortiGateLogParserService _logParser;
         private readonly ITicketNumberGenerator _ticketNumberGenerator;
+        private readonly IPolicyRecommendationService _recommendationService;
 
         public TrafficAnalysisController(
             ApplicationDbContext context,
             ILogger<TrafficAnalysisController> logger,
             IFortiGateLogParserService logParser,
-            ITicketNumberGenerator ticketNumberGenerator)
+            ITicketNumberGenerator ticketNumberGenerator,
+            IPolicyRecommendationService recommendationService)
         {
             _context = context;
             _logger = logger;
             _logParser = logParser;
             _ticketNumberGenerator = ticketNumberGenerator;
+            _recommendationService = recommendationService;
         }
 
         // GET: TrafficAnalysis
@@ -138,6 +142,121 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
             }
 
             return View(analysis);
+        }
+
+        // GET: TrafficAnalysis/Edit/5
+        public async Task<IActionResult> Edit(Guid? id)
+        {
+            if (id == null)
+                return NotFound();
+
+            var analysis = await _context.TrafficAnalyses
+                .Include(t => t.FortiGate)
+                    .ThenInclude(f => f.FTAService)
+                        .ThenInclude(s => s.Customer)
+                .FirstOrDefaultAsync(m => m.TrafficAnalysisID == id);
+
+            if (analysis == null)
+                return NotFound();
+
+            // Authorization check - only creator or admins can edit
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Forbid();
+            }
+
+            var viewModel = new EditTrafficAnalysisViewModel
+            {
+                TrafficAnalysisID = analysis.TrafficAnalysisID,
+                TicketNumber = analysis.TicketNumber,
+                Summary = analysis.Summary,
+                Description = analysis.Description,
+                CustomerName = analysis.FortiGate?.FTAService?.Customer?.CustomerName ?? "N/A",
+                ServiceJobID = analysis.FortiGate?.FTAService?.JobID ?? "N/A",
+                FortiGateHostname = analysis.FortiGate?.FGHostname ?? "N/A",
+                Status = analysis.Status,
+                CreatedByUPN = analysis.CreatedByUPN,
+                CreatedDate = analysis.CreatedDate
+            };
+
+            return View(viewModel);
+        }
+
+        // POST: TrafficAnalysis/Edit/5
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(Guid id, EditTrafficAnalysisViewModel viewModel)
+        {
+            _logger.LogInformation("Edit POST called for ticket {TicketID}", id);
+            _logger.LogInformation("ViewModel - TrafficAnalysisID: {VmId}, Summary: {Summary}", 
+                viewModel.TrafficAnalysisID, viewModel.Summary);
+            
+            if (id != viewModel.TrafficAnalysisID)
+            {
+                _logger.LogWarning("ID mismatch: route={RouteId}, model={ModelId}", id, viewModel.TrafficAnalysisID);
+                return NotFound();
+            }
+
+            var analysis = await _context.TrafficAnalyses.FindAsync(id);
+            if (analysis == null)
+            {
+                _logger.LogWarning("Ticket not found: {TicketID}", id);
+                return NotFound();
+            }
+
+            // Authorization check - only creator or admins can edit
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                _logger.LogWarning("Unauthorized edit attempt by {User}", User.Identity?.Name);
+                return Forbid();
+            }
+
+            _logger.LogInformation("ModelState.IsValid: {IsValid}", ModelState.IsValid);
+            
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("ModelState validation failed");
+                foreach (var error in ModelState)
+                {
+                    _logger.LogWarning("Validation error - Key: {Key}, Errors: {Errors}",
+                        error.Key, string.Join(", ", error.Value.Errors.Select(e => e.ErrorMessage)));
+                }
+                
+                // Reload read-only fields
+                var temp = await _context.TrafficAnalyses
+                    .Include(t => t.FortiGate)
+                        .ThenInclude(f => f.FTAService)
+                            .ThenInclude(s => s.Customer)
+                    .FirstOrDefaultAsync(m => m.TrafficAnalysisID == id);
+
+                viewModel.CustomerName = temp?.FortiGate?.FTAService?.Customer?.CustomerName ?? "N/A";
+                viewModel.ServiceJobID = temp?.FortiGate?.FTAService?.JobID ?? "N/A";
+                viewModel.FortiGateHostname = temp?.FortiGate?.FGHostname ?? "N/A";
+                viewModel.Status = temp?.Status ?? "Unknown";
+                viewModel.CreatedByUPN = temp?.CreatedByUPN ?? "Unknown";
+                viewModel.CreatedDate = temp?.CreatedDate ?? DateTime.UtcNow;
+
+                return View(viewModel);
+            }
+
+            // Update only editable fields
+            analysis.Summary = viewModel.Summary;
+            analysis.Description = viewModel.Description;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Ticket updated successfully!";
+                _logger.LogInformation("Traffic Analysis ticket {TicketNumber} updated by {User}",
+                    analysis.TicketNumber, User.Identity?.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating ticket {TicketNumber}", analysis.TicketNumber);
+                TempData["ErrorMessage"] = "Error updating ticket. Please try again.";
+            }
+
+            return RedirectToAction(nameof(Details), new { id = analysis.TrafficAnalysisID });
         }
 
         // GET: TrafficAnalysis/GetServicesForCustomer
@@ -259,12 +378,28 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
 
         // GET: TrafficAnalysis/GetLogs/5
         [HttpGet]
-        public async Task<IActionResult> GetLogs(Guid id, string? search = null, string? filterAction = null, 
-            string? srcIp = null, string? dstIp = null, string? proto = null)
+        public async Task<IActionResult> GetLogs(
+            Guid id, 
+            string? search = null, 
+            string? filterAction = null,
+            string? srcIp = null, 
+            string? dstIp = null, 
+            string? srcPort = null,
+            string? dstPort = null,
+            string? srcIntf = null,
+            string? dstIntf = null,
+            string? proto = null,
+            string? service = null,
+            string? policyId = null,
+            string? policyName = null,
+            string? logId = null,
+            string? sessionId = null,
+            DateTime? dateFrom = null,
+            DateTime? dateTo = null,
+            int page = 1,
+            int pageSize = 100)
         {
-            _logger.LogInformation("GetLogs called for ticket {TicketID}", id);
-            _logger.LogInformation("Parameters - search: '{Search}', filterAction: '{Action}', srcIp: '{SrcIp}', dstIp: '{DstIp}', proto: '{Proto}'", 
-                search ?? "null", filterAction ?? "null", srcIp ?? "null", dstIp ?? "null", proto ?? "null");
+            _logger.LogInformation("GetLogs called for ticket {TicketID} - Page {Page}, PageSize {PageSize}", id, page, pageSize);
 
             var analysis = await _context.TrafficAnalyses.FindAsync(id);
             if (analysis == null)
@@ -283,47 +418,72 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
                 .Where(l => l.TrafficAnalysisID == id);
 
             var totalCount = await query.CountAsync();
-            _logger.LogInformation("Found {Count} total logs for ticket {TicketID}", totalCount, id);
 
-            // Apply filters ONLY if they have actual values (not null, not empty)
+            // Apply filters
             if (!string.IsNullOrWhiteSpace(search))
             {
-                _logger.LogInformation("Applying search filter: {Search}", search);
                 query = query.Where(l => 
                     (l.SrcIP != null && l.SrcIP.Contains(search)) ||
                     (l.DstIP != null && l.DstIP.Contains(search)) ||
                     (l.SrcPort != null && l.SrcPort.Contains(search)) ||
                     (l.DstPort != null && l.DstPort.Contains(search)) ||
-                    (l.Service != null && l.Service.Contains(search)));
+                    (l.Service != null && l.Service.Contains(search)) ||
+                    (l.PolicyName != null && l.PolicyName.Contains(search)));
             }
 
             if (!string.IsNullOrWhiteSpace(filterAction))
-            {
-                _logger.LogInformation("Applying action filter: {Action}", filterAction);
                 query = query.Where(l => l.Action == filterAction);
-            }
 
             if (!string.IsNullOrWhiteSpace(srcIp))
-            {
-                _logger.LogInformation("Applying srcIp filter: {SrcIp}", srcIp);
                 query = query.Where(l => l.SrcIP != null && l.SrcIP.Contains(srcIp));
-            }
 
             if (!string.IsNullOrWhiteSpace(dstIp))
-            {
-                _logger.LogInformation("Applying dstIp filter: {DstIp}", dstIp);
                 query = query.Where(l => l.DstIP != null && l.DstIP.Contains(dstIp));
-            }
+
+            if (!string.IsNullOrWhiteSpace(srcPort))
+                query = query.Where(l => l.SrcPort != null && l.SrcPort.Contains(srcPort));
+
+            if (!string.IsNullOrWhiteSpace(dstPort))
+                query = query.Where(l => l.DstPort != null && l.DstPort.Contains(dstPort));
+
+            if (!string.IsNullOrWhiteSpace(srcIntf))
+                query = query.Where(l => l.SrcInt != null && l.SrcInt.Contains(srcIntf));
+
+            if (!string.IsNullOrWhiteSpace(dstIntf))
+                query = query.Where(l => l.DstInt != null && l.DstInt.Contains(dstIntf));
 
             if (!string.IsNullOrWhiteSpace(proto))
-            {
-                _logger.LogInformation("Applying proto filter: {Proto}", proto);
                 query = query.Where(l => l.Proto == proto);
-            }
 
+            if (!string.IsNullOrWhiteSpace(service))
+                query = query.Where(l => l.Service != null && l.Service.Contains(service));
+
+            if (!string.IsNullOrWhiteSpace(policyId))
+                query = query.Where(l => l.PolicyId != null && l.PolicyId.Contains(policyId));
+
+            if (!string.IsNullOrWhiteSpace(policyName))
+                query = query.Where(l => l.PolicyName != null && l.PolicyName.Contains(policyName));
+
+            if (!string.IsNullOrWhiteSpace(logId))
+                query = query.Where(l => l.LogId != null && l.LogId.Contains(logId));
+
+            if (!string.IsNullOrWhiteSpace(sessionId))
+                query = query.Where(l => l.SessionId != null && l.SessionId.Contains(sessionId));
+
+            if (dateFrom.HasValue)
+                query = query.Where(l => l.LogDate >= dateFrom.Value.Date);
+
+            if (dateTo.HasValue)
+                query = query.Where(l => l.LogDate <= dateTo.Value.Date);
+
+            var filteredCount = await query.CountAsync();
+
+            // Apply pagination
             var logs = await query
                 .OrderByDescending(l => l.LogDate)
                 .ThenByDescending(l => l.LogTime)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(l => new
                 {
                     l.TrafficLogID,
@@ -348,9 +508,95 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
                 })
                 .ToListAsync();
 
-            _logger.LogInformation("Returning {Count} logs after filtering", logs.Count);
+            _logger.LogInformation("Returning page {Page} with {Count} logs (Total: {Total}, Filtered: {Filtered})", 
+                page, logs.Count, totalCount, filteredCount);
 
-            return Json(logs);
+            return Json(new
+            {
+                logs = logs,
+                pagination = new
+                {
+                    page = page,
+                    pageSize = pageSize,
+                    totalCount = totalCount,
+                    filteredCount = filteredCount,
+                    totalPages = (int)Math.Ceiling(filteredCount / (double)pageSize)
+                }
+            });
+        }
+
+        // POST: TrafficAnalysis/AnalyzeSelected
+        [HttpPost]
+        public async Task<IActionResult> AnalyzeSelected(Guid id, [FromBody] List<Guid> logIds)
+        {
+            _logger.LogInformation("AnalyzeSelected called for ticket {TicketID} with {Count} logs", id, logIds?.Count ?? 0);
+
+            if (logIds == null || !logIds.Any())
+            {
+                return Json(new { success = false, message = "No logs selected for analysis" });
+            }
+
+            var analysis = await _context.TrafficAnalyses.FindAsync(id);
+            if (analysis == null)
+            {
+                return Json(new { success = false, message = "Ticket not found" });
+            }
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Json(new { success = false, message = "Unauthorized" });
+            }
+
+            try
+            {
+                // Get selected logs from database
+                var selectedLogs = await _context.TrafficLogs
+                    .Where(l => logIds.Contains(l.TrafficLogID) && l.TrafficAnalysisID == id)
+                    .ToListAsync();
+
+                if (!selectedLogs.Any())
+                {
+                    return Json(new { success = false, message = "Selected logs not found" });
+                }
+
+                _logger.LogInformation("Analyzing {Count} logs for ticket {TicketID}", selectedLogs.Count, id);
+
+                // Generate recommendations
+                var recommendations = _recommendationService.AnalyzeLogs(
+                    selectedLogs,
+                    analysis.TrafficAnalysisID,
+                    User.Identity?.Name ?? "Unknown");
+
+                if (recommendations.Any())
+                {
+                    await _context.TrafficAnalysisRecommendations.AddRangeAsync(recommendations);
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation("Created {Count} recommendations for ticket {TicketID}",
+                        recommendations.Count, id);
+
+                    return Json(new
+                    {
+                        success = true,
+                        message = $"Successfully generated {recommendations.Count} recommendation(s)",
+                        count = recommendations.Count
+                    });
+                }
+                else
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "No recommendations could be generated from the selected logs"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error analyzing logs for ticket {TicketID}", id);
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
         }
 
         // GET: TrafficAnalysis/Delete/5

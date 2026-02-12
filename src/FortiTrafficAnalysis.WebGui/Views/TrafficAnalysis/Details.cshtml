@@ -12,6 +12,12 @@
             <p class="text-muted">@Model.Description</p>
         </div>
         <div class="col-md-4 text-end">
+            @if (User.IsInRole("Admins") || Model.CreatedByUPN == User.Identity?.Name)
+            {
+                <a asp-action="Edit" asp-route-id="@Model.TrafficAnalysisID" class="btn btn-warning me-2">
+                    <i class="bi bi-pencil-square"></i> Edit Ticket
+                </a>
+            }
             <a asp-action="Index" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to List
             </a>
@@ -206,10 +212,13 @@
     </div>
 
     <!-- Traffic Logs Table Section -->
-    <div class="card mb-4">
+    <div class="card mb-4" id="logsSection">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-table"></i> Traffic Logs (<span id="logCount">@Model.TrafficLogs.Count</span>)</h5>
             <div>
+                <a href="#recommendationsSection" class="btn btn-sm btn-info me-2">
+                    <i class="bi bi-arrow-down-circle"></i> Jump to Recommendations
+                </a>
                 <button class="btn btn-sm btn-light" id="refreshLogsBtn">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
@@ -221,10 +230,10 @@
         <div class="card-body">
             @if (Model.TrafficLogs.Any())
             {
-                <!-- Filter Controls -->
+                <!-- Basic Filter Controls -->
                 <div class="row mb-3">
                     <div class="col-md-3">
-                        <input type="text" id="searchBox" class="form-control form-control-sm" placeholder="Search...">
+                        <input type="text" id="searchBox" class="form-control form-control-sm" placeholder="Quick Search...">
                     </div>
                     <div class="col-md-2">
                         <select id="filterAction" class="form-select form-select-sm">
@@ -250,8 +259,71 @@
                     </div>
                     <div class="col-md-1">
                         <button class="btn btn-sm btn-secondary w-100" id="clearFiltersBtn">
-                            <i class="bi bi-x"></i> Clear
+                            <i class="bi bi-x"></i>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Filters (Collapsible) -->
+                <div class="mb-3">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+                        <i class="bi bi-funnel"></i> Advanced Filters
+                    </button>
+                </div>
+                
+                <div class="collapse" id="advancedFilters">
+                    <div class="card card-body mb-3 bg-light">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small">Source Port</label>
+                                <input type="text" id="filterSrcPort" class="form-control form-control-sm" placeholder="e.g. 443">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Dest Port</label>
+                                <input type="text" id="filterDstPort" class="form-control form-control-sm" placeholder="e.g. 80">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Source Interface</label>
+                                <input type="text" id="filterSrcIntf" class="form-control form-control-sm" placeholder="e.g. port1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Dest Interface</label>
+                                <input type="text" id="filterDstIntf" class="form-control form-control-sm" placeholder="e.g. port2">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Service</label>
+                                <input type="text" id="filterService" class="form-control form-control-sm" placeholder="e.g. HTTPS">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Policy ID</label>
+                                <input type="text" id="filterPolicyId" class="form-control form-control-sm" placeholder="e.g. 5">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Policy Name</label>
+                                <input type="text" id="filterPolicyName" class="form-control form-control-sm" placeholder="Policy name">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Log ID</label>
+                                <input type="text" id="filterLogId" class="form-control form-control-sm" placeholder="Log ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Session ID</label>
+                                <input type="text" id="filterSessionId" class="form-control form-control-sm" placeholder="Session ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Date From</label>
+                                <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Date To</label>
+                                <input type="date" id="filterDateTo" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-sm btn-primary w-100" id="applyAdvancedFiltersBtn">
+                                    <i class="bi bi-check-circle"></i> Apply Filters
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -318,6 +390,9 @@
                 <div id="noLogsMessage" class="text-center py-3 d-none">
                     <i class="bi bi-info-circle"></i> No logs match the current filters.
                 </div>
+
+                <!-- Pagination Controls -->
+                <div id="paginationControls" class="mt-3"></div>
             }
             else
             {
@@ -330,9 +405,12 @@
     </div>
 
     <!-- Recommendations Section -->
-    <div class="card">
+    <div class="card" id="recommendationsSection">
         <div class="card-header bg-warning d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Policy Recommendations (@Model.Recommendations.Count)</h5>
+            <a href="#logsSection" class="btn btn-sm btn-secondary">
+                <i class="bi bi-arrow-up-circle"></i> Back to Logs
+            </a>
         </div>
         <div class="card-body">
             @if (Model.Recommendations.Any())
@@ -367,6 +445,10 @@
     var ticketId = '@Model.TrafficAnalysisID';
     var allLogs = [];
     var selectedLogIds = [];
+    var currentPage = 1;
+    var pageSize = 100;
+    var totalPages = 1;
+    var totalCount = 0;
 
     console.log('Ticket ID:', ticketId);
     console.log('Ticket ID type:', typeof ticketId);
@@ -380,9 +462,10 @@
                 loadLogs();
             });
 
-            // Filter controls
+            // Filter controls - reset to page 1 when filtering
             $('#searchBox, #filterAction, #filterSrcIp, #filterDstIp, #filterProto').on('input change', function() {
-                applyFilters();
+                currentPage = 1;
+                loadLogs();
             });
 
             // Clear filters
@@ -392,7 +475,36 @@
                 $('#filterSrcIp').val('');
                 $('#filterDstIp').val('');
                 $('#filterProto').val('');
+                
+                // Clear advanced filters
+                $('#filterSrcPort').val('');
+                $('#filterDstPort').val('');
+                $('#filterSrcIntf').val('');
+                $('#filterDstIntf').val('');
+                $('#filterService').val('');
+                $('#filterPolicyId').val('');
+                $('#filterPolicyName').val('');
+                $('#filterLogId').val('');
+                $('#filterSessionId').val('');
+                $('#filterDateFrom').val('');
+                $('#filterDateTo').val('');
+                
+                currentPage = 1; // Reset to first page
                 loadLogs();
+            });
+
+            // Apply advanced filters button
+            $('#applyAdvancedFiltersBtn').click(function() {
+                currentPage = 1; // Reset to first page
+                loadLogs();
+            });
+
+            // Also trigger on Enter key in advanced filter inputs
+            $('#advancedFilters input').on('keypress', function(e) {
+                if (e.which === 13) {
+                    currentPage = 1; // Reset to first page
+                    loadLogs();
+                }
             });
 
             // Column visibility toggles
@@ -422,10 +534,14 @@
         });
 
         function loadLogs() {
-            console.log('loadLogs() called with ticketId:', ticketId);
+            console.log('loadLogs() called - Page:', currentPage, 'PageSize:', pageSize);
             
             // Build data object with only non-empty values
-            var requestData = { id: ticketId };
+            var requestData = { 
+                id: ticketId,
+                page: currentPage,
+                pageSize: pageSize
+            };
             
             var search = $('#searchBox').val();
             var action = $('#filterAction').val();
@@ -433,61 +549,170 @@
             var dstIp = $('#filterDstIp').val();
             var proto = $('#filterProto').val();
             
+            // Advanced filters
+            var srcPort = $('#filterSrcPort').val();
+            var dstPort = $('#filterDstPort').val();
+            var srcIntf = $('#filterSrcIntf').val();
+            var dstIntf = $('#filterDstIntf').val();
+            var service = $('#filterService').val();
+            var policyId = $('#filterPolicyId').val();
+            var policyName = $('#filterPolicyName').val();
+            var logId = $('#filterLogId').val();
+            var sessionId = $('#filterSessionId').val();
+            var dateFrom = $('#filterDateFrom').val();
+            var dateTo = $('#filterDateTo').val();
+            
             if (search) requestData.search = search;
-            if (action) requestData.filterAction = action;  // Changed from 'action' to 'filterAction'
+            if (action) requestData.filterAction = action;
             if (srcIp) requestData.srcIp = srcIp;
             if (dstIp) requestData.dstIp = dstIp;
             if (proto) requestData.proto = proto;
             
+            if (srcPort) requestData.srcPort = srcPort;
+            if (dstPort) requestData.dstPort = dstPort;
+            if (srcIntf) requestData.srcIntf = srcIntf;
+            if (dstIntf) requestData.dstIntf = dstIntf;
+            if (service) requestData.service = service;
+            if (policyId) requestData.policyId = policyId;
+            if (policyName) requestData.policyName = policyName;
+            if (logId) requestData.logId = logId;
+            if (sessionId) requestData.sessionId = sessionId;
+            if (dateFrom) requestData.dateFrom = dateFrom;
+            if (dateTo) requestData.dateTo = dateTo;
+            
             console.log('Request data:', requestData);
+            
+            // Show loading indicator
+            $('#logsTableBody').html('<tr><td colspan="18" class="text-center"><div class="spinner-border spinner-border-sm"></div> Loading page ' + currentPage + '...</td></tr>');
             
             $.ajax({
                 url: '@Url.Action("GetLogs", "TrafficAnalysis")',
                 type: 'GET',
                 data: requestData,
-                success: function(data) {
+                success: function(response) {
                     console.log('AJAX Success!');
-                    console.log('Logs loaded:', data.length);
-                    if (data.length > 0) {
-                        console.log('First log:', data[0]);
-                    }
-                    allLogs = data;
-                    renderLogs(data);
-                    $('#logCount').text(data.length);
+                    console.log('Logs loaded:', response.logs.length);
+                    console.log('Pagination:', response.pagination);
+                    
+                    allLogs = response.logs;
+                    totalCount = response.pagination.totalCount;
+                    totalPages = response.pagination.totalPages;
+                    
+                    renderLogs(response.logs);
+                    renderPagination(response.pagination);
+                    $('#logCount').text(response.pagination.filteredCount + ' of ' + totalCount);
                 },
                 error: function(xhr, status, error) {
                     console.error('AJAX Error!');
                     console.error('Status:', status);
                     console.error('Error:', error);
-                    console.error('Response:', xhr.responseText);
-                    console.error('Status Code:', xhr.status);
                     $('#logsTableBody').html('<tr><td colspan="18" class="text-center text-danger">Error loading logs: ' + error + '</td></tr>');
                 }
             });
         }
 
-        function applyFilters() {
-            var search = $('#searchBox').val().toLowerCase();
-            var action = $('#filterAction').val();
-            var srcIp = $('#filterSrcIp').val();
-            var dstIp = $('#filterDstIp').val();
-            var proto = $('#filterProto').val();
+        function renderPagination(pagination) {
+            if (pagination.totalPages <= 1) {
+                $('#paginationControls').html('');
+                return;
+            }
 
-            var filtered = allLogs.filter(function(log) {
-                var matchSearch = !search || 
-                    (log.srcIP && log.srcIP.toLowerCase().includes(search)) ||
-                    (log.dstIP && log.dstIP.toLowerCase().includes(search)) ||
-                    (log.service && log.service.toLowerCase().includes(search));
-
-                var matchAction = !action || log.action === action;
-                var matchSrcIp = !srcIp || (log.srcIP && log.srcIP.includes(srcIp));
-                var matchDstIp = !dstIp || (log.dstIP && log.dstIP.includes(dstIp));
-                var matchProto = !proto || log.proto === proto;
-
-                return matchSearch && matchAction && matchSrcIp && matchDstIp && matchProto;
+            var html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
+            
+            // Previous button
+            html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
+            html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">Previous</a></li>';
+            
+            // Page numbers (show max 5 pages)
+            var startPage = Math.max(1, currentPage - 2);
+            var endPage = Math.min(pagination.totalPages, currentPage + 2);
+            
+            if (startPage > 1) {
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+                if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            
+            for (var i = startPage; i <= endPage; i++) {
+                html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
+                html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+            }
+            
+            if (endPage < pagination.totalPages) {
+                if (endPage < pagination.totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="' + pagination.totalPages + '">' + pagination.totalPages + '</a></li>';
+            }
+            
+            // Next button
+            html += '<li class="page-item ' + (currentPage === pagination.totalPages ? 'disabled' : '') + '">';
+            html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">Next</a></li>';
+            
+            html += '</ul></nav>';
+            html += '<small class="text-muted d-block text-center mt-2">Showing page ' + currentPage + ' of ' + pagination.totalPages + ' (' + pagination.filteredCount + ' total logs)</small>';
+            
+            $('#paginationControls').html(html);
+            
+            // Attach click handlers
+            $('#paginationControls a.page-link').click(function(e) {
+                e.preventDefault();
+                var page = parseInt($(this).data('page'));
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    loadLogs();
+                    $('html, body').animate({ scrollTop: $('#logsSection').offset().top - 100 }, 300);
+                }
             });
+        }
 
-            renderLogs(filtered);
+        function renderPagination(pagination) {
+            if (pagination.totalPages <= 1) {
+                $('#paginationControls').html('');
+                return;
+            }
+
+            var html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
+            
+            // Previous button
+            html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">';
+            html += '<a class="page-link" href="#" data-page="' + (currentPage - 1) + '">Previous</a></li>';
+            
+            // Page numbers (show max 5 pages)
+            var startPage = Math.max(1, currentPage - 2);
+            var endPage = Math.min(pagination.totalPages, currentPage + 2);
+            
+            if (startPage > 1) {
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+                if (startPage > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            
+            for (var i = startPage; i <= endPage; i++) {
+                html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '">';
+                html += '<a class="page-link" href="#" data-page="' + i + '">' + i + '</a></li>';
+            }
+            
+            if (endPage < pagination.totalPages) {
+                if (endPage < pagination.totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="' + pagination.totalPages + '">' + pagination.totalPages + '</a></li>';
+            }
+            
+            // Next button
+            html += '<li class="page-item ' + (currentPage === pagination.totalPages ? 'disabled' : '') + '">';
+            html += '<a class="page-link" href="#" data-page="' + (currentPage + 1) + '">Next</a></li>';
+            
+            html += '</ul></nav>';
+            html += '<small class="text-muted d-block text-center mt-2">Showing page ' + currentPage + ' of ' + pagination.totalPages + ' (' + pagination.filteredCount + ' total logs)</small>';
+            
+            $('#paginationControls').html(html);
+            
+            // Attach click handlers
+            $('#paginationControls a.page-link').click(function(e) {
+                e.preventDefault();
+                var page = parseInt($(this).data('page'));
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    loadLogs();
+                    $('html, body').animate({ scrollTop: $('#logsSection').offset().top - 100 }, 300);
+                }
+            });
         }
 
         function renderLogs(logs) {
@@ -543,15 +768,35 @@
                 if (isChecked) {
                     if (!selectedLogIds.includes(logId)) {
                         selectedLogIds.push(logId);
+                        console.log('Added log to selection:', logId, '| Total selected:', selectedLogIds.length);
                     }
                     row.addClass('table-primary');
                 } else {
                     selectedLogIds = selectedLogIds.filter(id => id !== logId);
+                    console.log('Removed log from selection:', logId, '| Total selected:', selectedLogIds.length);
                     row.removeClass('table-primary');
                 }
 
                 updateSelectedCount();
+                updateSelectAllCheckbox();
             });
+            
+            updateSelectAllCheckbox();
+        }
+
+        function updateSelectAllCheckbox() {
+            var visibleCheckboxes = $('.log-checkbox:visible');
+            var checkedCheckboxes = $('.log-checkbox:visible:checked');
+            
+            if (visibleCheckboxes.length === 0) {
+                $('#selectAll').prop('checked', false).prop('indeterminate', false);
+            } else if (checkedCheckboxes.length === 0) {
+                $('#selectAll').prop('checked', false).prop('indeterminate', false);
+            } else if (checkedCheckboxes.length === visibleCheckboxes.length) {
+                $('#selectAll').prop('checked', true).prop('indeterminate', false);
+            } else {
+                $('#selectAll').prop('checked', false).prop('indeterminate', true);
+            }
         }
 
         function updateSelectedCount() {
@@ -585,9 +830,40 @@
         }
 
         function analyzeSelectedLogs() {
-            // This will be implemented in Step 6
-            alert('Analysis functionality will be implemented next!\n\nSelected logs: ' + selectedLogIds.length);
-            console.log('Selected log IDs:', selectedLogIds);
+            if (selectedLogIds.length === 0) {
+                alert('Please select at least one log entry');
+                return;
+            }
+
+            if (!confirm(`Analyze ${selectedLogIds.length} selected log(s) and generate policy recommendations?`)) {
+                return;
+            }
+
+            $('#analyzeSelectedBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Analyzing...');
+
+            $.ajax({
+                url: '@Url.Action("AnalyzeSelected", "TrafficAnalysis")' + '?id=' + ticketId,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(selectedLogIds),
+                success: function(response) {
+                    console.log('Analysis response:', response);
+                    
+                    if (response.success) {
+                        alert(`? Success!\n\n${response.message}\n\nThe page will reload to show the recommendations.`);
+                        window.location.reload();
+                    } else {
+                        alert(`? Error: ${response.message}`);
+                        $('#analyzeSelectedBtn').prop('disabled', false).html('<i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Analysis error:', error);
+                    console.error('Response:', xhr.responseText);
+                    alert(`? Error analyzing logs: ${error}\n\nCheck console for details.`);
+                    $('#analyzeSelectedBtn').prop('disabled', false).html('<i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
+                }
+            });
         }
     </script>
 }

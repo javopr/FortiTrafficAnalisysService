@@ -7,6 +7,7 @@ using FortiTrafficAnalysis.Services.Authorization;
 using FortiTrafficAnalysis.Services.Authentication;
 using FortiTrafficAnalysis.Services.LogParsing;
 using FortiTrafficAnalysis.Services;
+using FortiTrafficAnalysis.Services.Recommendations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,9 @@ builder.Services.AddScoped<IFortiGateLogParserService, FortiGateLogParserService
 
 // Register ticket number generator
 builder.Services.AddSingleton<ITicketNumberGenerator, TicketNumberGenerator>();
+
+// Register recommendation service
+builder.Services.AddScoped<IPolicyRecommendationService, PolicyRecommendationService>();
 
 // Configure authorization policies
 builder.Services.AddAuthorization(options =>
