@@ -23,6 +23,8 @@ namespace FortiTrafficAnalysis.Data
         public DbSet<FTAService> FTAServices { get; set; }
         public DbSet<FortiGate> FortiGates { get; set; }
         public DbSet<TrafficLog> TrafficLogs { get; set; }
+        public DbSet<TrafficAnalysis> TrafficAnalyses { get; set; }
+        public DbSet<TrafficAnalysisRecommendation> TrafficAnalysisRecommendations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -35,6 +37,8 @@ namespace FortiTrafficAnalysis.Data
             ConfigureFTAService(modelBuilder);
             ConfigureFortiGate(modelBuilder);
             ConfigureTrafficLog(modelBuilder);
+            ConfigureTrafficAnalysis(modelBuilder);
+            ConfigureTrafficAnalysisRecommendation(modelBuilder);
 
             // Seed initial data
             SeedData(modelBuilder);
@@ -118,18 +122,12 @@ namespace FortiTrafficAnalysis.Data
         {
             modelBuilder.Entity<TrafficLog>(entity =>
             {
-                entity.HasKey(e => e.LogTempID);
-                entity.Property(e => e.SourceIP).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.DestinationIP).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.SourcePort).IsRequired().HasMaxLength(10);
-                entity.Property(e => e.DestinationPort).IsRequired().HasMaxLength(10);
-                entity.Property(e => e.Protocol).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.PolicyAction).IsRequired().HasMaxLength(50);
+                entity.HasKey(e => e.TrafficLogID);
 
-                entity.HasOne(e => e.Customer)
-                    .WithMany(c => c.TrafficLogs)
-                    .HasForeignKey(e => e.CustomerID)
-                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.TrafficAnalysis)
+                    .WithMany(ta => ta.TrafficLogs)
+                    .HasForeignKey(e => e.TrafficAnalysisID)
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(e => e.FortiGate)
                     .WithMany(f => f.TrafficLogs)
@@ -137,11 +135,64 @@ namespace FortiTrafficAnalysis.Data
                     .OnDelete(DeleteBehavior.SetNull);
 
                 // Create indexes for common query patterns
-                entity.HasIndex(e => e.LogTimestamp);
-                entity.HasIndex(e => e.SourceIP);
-                entity.HasIndex(e => e.DestinationIP);
-                entity.HasIndex(e => e.PolicyAction);
-                entity.HasIndex(e => e.CustomerID);
+                entity.HasIndex(e => e.TrafficAnalysisID);
+                entity.HasIndex(e => e.LogDate);
+                entity.HasIndex(e => e.SrcIP);
+                entity.HasIndex(e => e.DstIP);
+                entity.HasIndex(e => e.Action);
+            });
+        }
+
+        private void ConfigureTrafficAnalysis(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<TrafficAnalysis>(entity =>
+            {
+                entity.HasKey(e => e.TrafficAnalysisID);
+                entity.Property(e => e.TicketNumber).IsRequired().HasMaxLength(10);
+                entity.Property(e => e.Summary).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Description).HasMaxLength(2000);
+                entity.Property(e => e.CreatedByUPN).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+
+                entity.HasIndex(e => e.TicketNumber).IsUnique();
+
+                entity.HasOne(e => e.FortiGate)
+                    .WithMany()
+                    .HasForeignKey(e => e.FGID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.Customer)
+                    .WithMany()
+                    .HasForeignKey(e => e.CustomerID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(e => e.FTAService)
+                    .WithMany()
+                    .HasForeignKey(e => e.FTAID)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.CreatedDate);
+                entity.HasIndex(e => e.CreatedByUPN);
+            });
+        }
+
+        private void ConfigureTrafficAnalysisRecommendation(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<TrafficAnalysisRecommendation>(entity =>
+            {
+                entity.HasKey(e => e.TrafficAnalysisRecommendationID);
+                entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.RecommendationText).IsRequired();
+                entity.Property(e => e.CreatedByUPN).HasMaxLength(255);
+
+                entity.HasOne(e => e.TrafficAnalysis)
+                    .WithMany(ta => ta.Recommendations)
+                    .HasForeignKey(e => e.TrafficAnalysisID)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.TrafficAnalysisID);
+                entity.HasIndex(e => e.CreatedDate);
             });
         }
 

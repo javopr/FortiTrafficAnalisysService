@@ -1,0 +1,594 @@
+@model FortiTrafficAnalysis.Domain.Entities.TrafficAnalysis
+
+@{
+    ViewData["Title"] = "Traffic Analysis - " + Model.Summary;
+}
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <h2><i class="bi bi-clipboard-data"></i> @Model.Summary</h2>
+            <p class="text-muted">@Model.Description</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a asp-action="Index" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Ticket Info Card -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Ticket Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Ticket Number:</dt>
+                        <dd class="col-sm-9"><h4><code class="text-primary">@Model.TicketNumber</code></h4></dd>
+
+                        <dt class="col-sm-3">Ticket ID:</dt>
+                        <dd class="col-sm-9"><small><code>@Model.TrafficAnalysisID</code></small></dd>
+
+                        <dt class="col-sm-3">Customer:</dt>
+                        <dd class="col-sm-9">@(Model.FortiGate?.FTAService?.Customer?.CustomerName ?? "N/A")</dd>
+
+                        <dt class="col-sm-3">Service:</dt>
+                        <dd class="col-sm-9"><code>@(Model.FortiGate?.FTAService?.JobID ?? "N/A")</code></dd>
+
+                        <dt class="col-sm-3">FortiGate:</dt>
+                        <dd class="col-sm-9">
+                            <strong>@Model.FortiGate?.FGHostname</strong>
+                            <br><small class="text-muted">@Model.FortiGate?.FGHost</small>
+                        </dd>
+
+                        <dt class="col-sm-3">Created By:</dt>
+                        <dd class="col-sm-9">@Model.CreatedByUPN</dd>
+
+                        <dt class="col-sm-3">Created Date:</dt>
+                        <dd class="col-sm-9">@Model.CreatedDate.ToLocalTime().ToString("MMMM dd, yyyy HH:mm")</dd>
+
+                        <dt class="col-sm-3">Status:</dt>
+                        <dd class="col-sm-9">
+                            @switch (Model.Status)
+                            {
+                                case "Open":
+                                    <span class="badge bg-success">@Model.Status</span>
+                                    break;
+                                case "In Progress":
+                                    <span class="badge bg-info">@Model.Status</span>
+                                    break;
+                                case "Closed":
+                                    <span class="badge bg-secondary">@Model.Status</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-primary">@Model.Status</span>
+                                    break;
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span><i class="bi bi-list-ul"></i> Traffic Logs:</span>
+                        <span class="badge bg-info fs-6">@Model.TrafficLogs.Count</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-lightbulb"></i> Recommendations:</span>
+                        <span class="badge bg-warning fs-6">@Model.Recommendations.Count</span>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.Status != "Closed")
+            {
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <form asp-action="UpdateStatus" method="post">
+                            <input type="hidden" name="id" value="@Model.TrafficAnalysisID" />
+                            <div class="d-grid gap-2">
+                                @if (Model.Status == "Open")
+                                {
+                                    <button type="submit" name="status" value="In Progress" class="btn btn-sm btn-info">
+                                        Mark as In Progress
+                                    </button>
+                                }
+                                @if (Model.Status != "Closed")
+                                {
+                                    <button type="submit" name="status" value="Closed" class="btn btn-sm btn-secondary">
+                                        Close Ticket
+                                    </button>
+                                }
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Log Ingestion Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Log Ingestion</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Import traffic logs from FortiGate or FortiAnalyzer to begin analysis.</p>
+            
+            <div class="row">
+                <!-- FortiGate Log File Upload (IMPLEMENTED) -->
+                <div class="col-lg-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="bi bi-file-earmark-arrow-up"></i> Upload FortiGate Log File</h6>
+                        </div>
+                        <div class="card-body">
+                            <form asp-action="UploadLogFile" asp-route-id="@Model.TrafficAnalysisID" method="post" enctype="multipart/form-data">
+                                @Html.AntiForgeryToken()
+                                
+                                <div class="mb-3">
+                                    <label for="logFile" class="form-label">Select Log File</label>
+                                    <input type="file" class="form-control" id="logFile" name="logFile" accept=".log,.txt" required>
+                                    <small class="form-text text-muted">
+                                        Accepted formats: .log, .txt (Max 50MB)
+                                    </small>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-upload"></i> Upload & Parse Logs
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other Ingestion Methods (PLACEHOLDER) -->
+                <div class="col-lg-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0"><i class="bi bi-cloud-arrow-down"></i> Other Ingestion Methods</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                <button class="list-group-item list-group-item-action disabled" disabled>
+                                    <i class="bi bi-hdd-network"></i> Fetch from FortiGate via REST API
+                                    <span class="badge bg-warning float-end">Coming Soon</span>
+                                </button>
+                                <button class="list-group-item list-group-item-action disabled" disabled>
+                                    <i class="bi bi-server"></i> Fetch from FortiAnalyzer via REST API
+                                    <span class="badge bg-warning float-end">Coming Soon</span>
+                                </button>
+                                <button class="list-group-item list-group-item-action disabled" disabled>
+                                    <i class="bi bi-file-earmark-text"></i> Upload FortiAnalyzer Log File
+                                    <span class="badge bg-warning float-end">Coming Soon</span>
+                                </button>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> Additional ingestion methods will be implemented in future releases.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Traffic Logs Table Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Traffic Logs (<span id="logCount">@Model.TrafficLogs.Count</span>)</h5>
+            <div>
+                <button class="btn btn-sm btn-light" id="refreshLogsBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button class="btn btn-sm btn-warning" id="analyzeSelectedBtn" disabled>
+                    <i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (Model.TrafficLogs.Any())
+            {
+                <!-- Filter Controls -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <input type="text" id="searchBox" class="form-control form-control-sm" placeholder="Search...">
+                    </div>
+                    <div class="col-md-2">
+                        <select id="filterAction" class="form-select form-select-sm">
+                            <option value="">All Actions</option>
+                            <option value="accept">Accept</option>
+                            <option value="deny">Deny</option>
+                            <option value="client-rst">Client-RST</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" id="filterSrcIp" class="form-control form-control-sm" placeholder="Source IP">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" id="filterDstIp" class="form-control form-control-sm" placeholder="Dest IP">
+                    </div>
+                    <div class="col-md-2">
+                        <select id="filterProto" class="form-select form-select-sm">
+                            <option value="">All Protocols</option>
+                            <option value="6">TCP (6)</option>
+                            <option value="17">UDP (17)</option>
+                            <option value="1">ICMP (1)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <button class="btn btn-sm btn-secondary w-100" id="clearFiltersBtn">
+                            <i class="bi bi-x"></i> Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Column Visibility Controls -->
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="bi bi-eye"></i> Show/Hide Columns:
+                        <div class="btn-group btn-group-sm" role="group" id="columnToggle">
+                            <input type="checkbox" class="btn-check" id="col-service" checked autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="col-service">Service</label>
+                            
+                            <input type="checkbox" class="btn-check" id="col-policyname" checked autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="col-policyname">Policy Name</label>
+                            
+                            <input type="checkbox" class="btn-check" id="col-bytes" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="col-bytes">Bytes</label>
+                            
+                            <input type="checkbox" class="btn-check" id="col-duration" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="col-duration">Duration</label>
+                        </div>
+                    </small>
+                </div>
+
+                <!-- Logs Table -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover" id="logsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAll">
+                                </th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Log ID</th>
+                                <th>Src IP</th>
+                                <th>Src Int</th>
+                                <th>Src Port</th>
+                                <th>Dst IP</th>
+                                <th>Dst Int</th>
+                                <th>Dst Port</th>
+                                <th>Proto</th>
+                                <th>Policy ID</th>
+                                <th>Action</th>
+                                <th class="col-service">Service</th>
+                                <th class="col-policyname">Policy Name</th>
+                                <th class="col-bytes">Sent</th>
+                                <th class="col-bytes">Rcvd</th>
+                                <th class="col-duration">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <tr>
+                                <td colspan="18" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Loading logs...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="noLogsMessage" class="text-center py-3 d-none">
+                    <i class="bi bi-info-circle"></i> No logs match the current filters.
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                    <p class="text-muted mt-3">No traffic logs ingested yet. Use the ingestion tools above to import logs.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Recommendations Section -->
+    <div class="card">
+        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Policy Recommendations (@Model.Recommendations.Count)</h5>
+        </div>
+        <div class="card-body">
+            @if (Model.Recommendations.Any())
+            {
+                <div class="list-group">
+                    @foreach (var recommendation in Model.Recommendations.OrderByDescending(r => r.CreatedDate))
+                    {
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">@recommendation.Title</h6>
+                                <small class="text-muted">@recommendation.CreatedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
+                            </div>
+                            <p class="mb-1">@recommendation.RecommendationText</p>
+                            <small class="text-muted">Created by: @recommendation.CreatedByUPN</small>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-4">
+                    <i class="bi bi-lightbulb-off" style="font-size: 2rem; color: #ccc;"></i>
+                    <p class="text-muted mt-2">No recommendations yet. Analyze traffic logs to generate policy recommendations.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var ticketId = '@Model.TrafficAnalysisID';
+    var allLogs = [];
+    var selectedLogIds = [];
+
+    console.log('Ticket ID:', ticketId);
+    console.log('Ticket ID type:', typeof ticketId);
+
+    $(document).ready(function() {
+        // Load logs on page load
+        loadLogs();
+
+            // Refresh button
+            $('#refreshLogsBtn').click(function() {
+                loadLogs();
+            });
+
+            // Filter controls
+            $('#searchBox, #filterAction, #filterSrcIp, #filterDstIp, #filterProto').on('input change', function() {
+                applyFilters();
+            });
+
+            // Clear filters
+            $('#clearFiltersBtn').click(function() {
+                $('#searchBox').val('');
+                $('#filterAction').val('');
+                $('#filterSrcIp').val('');
+                $('#filterDstIp').val('');
+                $('#filterProto').val('');
+                loadLogs();
+            });
+
+            // Column visibility toggles
+            $('#col-service, #col-policyname, #col-bytes, #col-duration').change(function() {
+                var column = $(this).attr('id');
+                var isVisible = $(this).is(':checked');
+                $('.' + column).toggle(isVisible);
+            });
+
+            // Initialize column visibility
+            $('.col-bytes, .col-duration').hide();
+
+            // Select all checkbox
+            $('#selectAll').change(function() {
+                var isChecked = $(this).is(':checked');
+                $('.log-checkbox:visible').prop('checked', isChecked).trigger('change');
+            });
+
+            // Analyze selected button
+            $('#analyzeSelectedBtn').click(function() {
+                if (selectedLogIds.length === 0) {
+                    alert('Please select at least one log entry');
+                    return;
+                }
+                analyzeSelectedLogs();
+            });
+        });
+
+        function loadLogs() {
+            console.log('loadLogs() called with ticketId:', ticketId);
+            
+            // Build data object with only non-empty values
+            var requestData = { id: ticketId };
+            
+            var search = $('#searchBox').val();
+            var action = $('#filterAction').val();
+            var srcIp = $('#filterSrcIp').val();
+            var dstIp = $('#filterDstIp').val();
+            var proto = $('#filterProto').val();
+            
+            if (search) requestData.search = search;
+            if (action) requestData.filterAction = action;  // Changed from 'action' to 'filterAction'
+            if (srcIp) requestData.srcIp = srcIp;
+            if (dstIp) requestData.dstIp = dstIp;
+            if (proto) requestData.proto = proto;
+            
+            console.log('Request data:', requestData);
+            
+            $.ajax({
+                url: '@Url.Action("GetLogs", "TrafficAnalysis")',
+                type: 'GET',
+                data: requestData,
+                success: function(data) {
+                    console.log('AJAX Success!');
+                    console.log('Logs loaded:', data.length);
+                    if (data.length > 0) {
+                        console.log('First log:', data[0]);
+                    }
+                    allLogs = data;
+                    renderLogs(data);
+                    $('#logCount').text(data.length);
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error!');
+                    console.error('Status:', status);
+                    console.error('Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    console.error('Status Code:', xhr.status);
+                    $('#logsTableBody').html('<tr><td colspan="18" class="text-center text-danger">Error loading logs: ' + error + '</td></tr>');
+                }
+            });
+        }
+
+        function applyFilters() {
+            var search = $('#searchBox').val().toLowerCase();
+            var action = $('#filterAction').val();
+            var srcIp = $('#filterSrcIp').val();
+            var dstIp = $('#filterDstIp').val();
+            var proto = $('#filterProto').val();
+
+            var filtered = allLogs.filter(function(log) {
+                var matchSearch = !search || 
+                    (log.srcIP && log.srcIP.toLowerCase().includes(search)) ||
+                    (log.dstIP && log.dstIP.toLowerCase().includes(search)) ||
+                    (log.service && log.service.toLowerCase().includes(search));
+
+                var matchAction = !action || log.action === action;
+                var matchSrcIp = !srcIp || (log.srcIP && log.srcIP.includes(srcIp));
+                var matchDstIp = !dstIp || (log.dstIP && log.dstIP.includes(dstIp));
+                var matchProto = !proto || log.proto === proto;
+
+                return matchSearch && matchAction && matchSrcIp && matchDstIp && matchProto;
+            });
+
+            renderLogs(filtered);
+        }
+
+        function renderLogs(logs) {
+            if (logs.length === 0) {
+                $('#logsTableBody').html('<tr><td colspan="18" class="text-center">No logs found</td></tr>');
+                $('#noLogsMessage').removeClass('d-none');
+                return;
+            }
+
+            $('#noLogsMessage').addClass('d-none');
+            var html = '';
+
+            logs.forEach(function(log) {
+                var isSelected = selectedLogIds.includes(log.trafficLogID);
+                var rowClass = isSelected ? 'table-primary' : '';
+                
+                html += '<tr class="' + rowClass + '" data-log-id="' + log.trafficLogID + '">';
+                html += '<td><input type="checkbox" class="log-checkbox" data-log-id="' + log.trafficLogID + '" ' + (isSelected ? 'checked' : '') + '></td>';
+                html += '<td>' + formatDate(log.logDate) + '</td>';
+                html += '<td>' + (log.logTime || '') + '</td>';
+                html += '<td><small>' + (log.logId || '') + '</small></td>';
+                html += '<td><code>' + (log.srcIP || '') + '</code></td>';
+                html += '<td><small>' + (log.srcInt || '') + '</small></td>';
+                html += '<td>' + (log.srcPort || '') + '</td>';
+                html += '<td><code>' + (log.dstIP || '') + '</code></td>';
+                html += '<td><small>' + (log.dstInt || '') + '</small></td>';
+                html += '<td>' + (log.dstPort || '') + '</td>';
+                html += '<td>' + (log.proto || '') + '</td>';
+                html += '<td>' + (log.policyId || '') + '</td>';
+                html += '<td>' + getActionBadge(log.action) + '</td>';
+                html += '<td class="col-service">' + (log.service || '') + '</td>';
+                html += '<td class="col-policyname"><small>' + (log.policyName || '') + '</small></td>';
+                html += '<td class="col-bytes">' + formatBytes(log.sentByte) + '</td>';
+                html += '<td class="col-bytes">' + formatBytes(log.rcvdByte) + '</td>';
+                html += '<td class="col-duration">' + (log.duration || '') + '</td>';
+                html += '</tr>';
+            });
+
+            $('#logsTableBody').html(html);
+
+            // Reapply column visibility
+            if (!$('#col-service').is(':checked')) $('.col-service').hide();
+            if (!$('#col-policyname').is(':checked')) $('.col-policyname').hide();
+            if (!$('#col-bytes').is(':checked')) $('.col-bytes').hide();
+            if (!$('#col-duration').is(':checked')) $('.col-duration').hide();
+
+            // Attach checkbox event handlers
+            $('.log-checkbox').change(function() {
+                var logId = $(this).data('log-id');
+                var isChecked = $(this).is(':checked');
+                var row = $(this).closest('tr');
+
+                if (isChecked) {
+                    if (!selectedLogIds.includes(logId)) {
+                        selectedLogIds.push(logId);
+                    }
+                    row.addClass('table-primary');
+                } else {
+                    selectedLogIds = selectedLogIds.filter(id => id !== logId);
+                    row.removeClass('table-primary');
+                }
+
+                updateSelectedCount();
+            });
+        }
+
+        function updateSelectedCount() {
+            $('#selectedCount').text(selectedLogIds.length);
+            $('#analyzeSelectedBtn').prop('disabled', selectedLogIds.length === 0);
+        }
+
+        function getActionBadge(action) {
+            if (!action) return '';
+            
+            var badgeClass = 'bg-secondary';
+            if (action === 'accept') badgeClass = 'bg-success';
+            else if (action === 'deny') badgeClass = 'bg-danger';
+            else if (action.includes('rst')) badgeClass = 'bg-warning';
+
+            return '<span class="badge ' + badgeClass + '">' + action + '</span>';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            var date = new Date(dateStr);
+            return date.toLocaleDateString();
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0';
+            var k = 1024;
+            var sizes = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function analyzeSelectedLogs() {
+            // This will be implemented in Step 6
+            alert('Analysis functionality will be implemented next!\n\nSelected logs: ' + selectedLogIds.length);
+            console.log('Selected log IDs:', selectedLogIds);
+        }
+    </script>
+}
+

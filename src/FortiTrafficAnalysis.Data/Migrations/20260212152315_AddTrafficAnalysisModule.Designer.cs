@@ -4,6 +4,7 @@ using FortiTrafficAnalysis.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FortiTrafficAnalysis.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260212152315_AddTrafficAnalysisModule")]
+    partial class AddTrafficAnalysisModule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -242,11 +245,6 @@ namespace FortiTrafficAnalysis.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("TicketNumber")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
                     b.HasKey("TrafficAnalysisID");
 
                     b.HasIndex("CreatedByUPN");
@@ -260,9 +258,6 @@ namespace FortiTrafficAnalysis.Data.Migrations
                     b.HasIndex("FTAID");
 
                     b.HasIndex("Status");
-
-                    b.HasIndex("TicketNumber")
-                        .IsUnique();
 
                     b.ToTable("TrafficAnalysis");
                 });

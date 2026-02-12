@@ -5,60 +5,87 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace FortiTrafficAnalysis.Domain.Entities
 {
     /// <summary>
-    /// Represents uploaded FortiGate traffic logs for analysis
+    /// Represents FortiGate traffic log entries for analysis
     /// </summary>
     [Table("TrafficLogs")]
     public class TrafficLog
     {
         [Key]
-        public Guid LogTempID { get; set; }
+        public Guid TrafficLogID { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Guid CustomerID { get; set; }
+        public Guid TrafficAnalysisID { get; set; }
 
-        public Guid? FGID { get; set; } // Nullable - optional link to specific FortiGate
+        public Guid? FGID { get; set; }
 
-        [Required]
-        public DateTime LogTimestamp { get; set; }
+        // Log metadata
+        [Column(TypeName = "date")]
+        public DateTime? LogDate { get; set; }
 
-        [Required]
         [StringLength(50)]
-        public string SourceIP { get; set; }
+        public string? LogTime { get; set; }
 
-        [Required]
         [StringLength(50)]
-        public string DestinationIP { get; set; }
+        public string? LogId { get; set; }
 
-        [Required]
-        [StringLength(10)]
-        public string SourcePort { get; set; }
+        // Source information
+        [StringLength(100)]
+        public string? SrcIP { get; set; }
 
-        [Required]
-        [StringLength(10)]
-        public string DestinationPort { get; set; }
+        [StringLength(100)]
+        public string? SrcInt { get; set; }
 
-        [Required]
+        [StringLength(20)]
+        public string? SrcPort { get; set; }
+
+        // Destination information
+        [StringLength(100)]
+        public string? DstIP { get; set; }
+
+        [StringLength(100)]
+        public string? DstInt { get; set; }
+
+        [StringLength(20)]
+        public string? DstPort { get; set; }
+
+        // Traffic details
         [StringLength(50)]
-        public string Protocol { get; set; }
+        public string? Proto { get; set; }
 
-        [Required]
         [StringLength(50)]
-        public string PolicyAction { get; set; } // "accept" or "deny"
+        public string? PolicyId { get; set; }
 
+        [StringLength(50)]
+        public string? Action { get; set; }
+
+        // Additional fields from FortiGate logs
+        [StringLength(100)]
+        public string? Service { get; set; }
+
+        [StringLength(50)]
+        public string? SessionId { get; set; }
+
+        [StringLength(100)]
+        public string? PolicyName { get; set; }
+
+        public long? SentByte { get; set; }
+
+        public long? RcvdByte { get; set; }
+
+        public int? Duration { get; set; }
+
+        // Raw log line (complete original line)
         [Column(TypeName = "nvarchar(max)")]
-        public string RawLogLine { get; set; }
+        public string? RawLogLine { get; set; }
+
+        public DateTime ImportedDate { get; set; } = DateTime.UtcNow;
 
         // Navigation properties
-        [ForeignKey(nameof(CustomerID))]
-        public virtual Customer Customer { get; set; }
+        [ForeignKey(nameof(TrafficAnalysisID))]
+        public virtual TrafficAnalysis TrafficAnalysis { get; set; }
 
         [ForeignKey(nameof(FGID))]
-        public virtual FortiGate FortiGate { get; set; }
-
-        public TrafficLog()
-        {
-            LogTempID = Guid.NewGuid();
-            LogTimestamp = DateTime.UtcNow;
-        }
+        public virtual FortiGate? FortiGate { get; set; }
     }
 }
+

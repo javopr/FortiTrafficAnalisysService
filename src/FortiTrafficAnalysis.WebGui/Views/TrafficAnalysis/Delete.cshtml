@@ -1,0 +1,66 @@
+@model FortiTrafficAnalysis.Domain.Entities.TrafficAnalysis
+
+@{
+    ViewData["Title"] = "Delete Traffic Analysis Ticket";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="bi bi-trash"></i> Delete Traffic Analysis Ticket</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Warning!</strong> Are you sure you want to delete this traffic analysis ticket?
+                        This will also delete all associated traffic logs and recommendations.
+                    </div>
+
+                    <dl class="row">
+                        <dt class="col-sm-4">Summary:</dt>
+                        <dd class="col-sm-8"><strong>@Model.Summary</strong></dd>
+
+                        <dt class="col-sm-4">Customer:</dt>
+                        <dd class="col-sm-8">@(Model.FortiGate?.FTAService?.Customer?.CustomerName ?? "N/A")</dd>
+
+                        <dt class="col-sm-4">FortiGate:</dt>
+                        <dd class="col-sm-8"><code>@Model.FortiGate?.FGHostname</code></dd>
+
+                        <dt class="col-sm-4">Status:</dt>
+                        <dd class="col-sm-8"><span class="badge bg-info">@Model.Status</span></dd>
+
+                        <dt class="col-sm-4">Traffic Logs:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-warning">@Model.TrafficLogs.Count log(s)</span>
+                        </dd>
+
+                        <dt class="col-sm-4">Recommendations:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-info">@Model.Recommendations.Count recommendation(s)</span>
+                        </dd>
+
+                        <dt class="col-sm-4">Created By:</dt>
+                        <dd class="col-sm-8">@Model.CreatedByUPN</dd>
+
+                        <dt class="col-sm-4">Created Date:</dt>
+                        <dd class="col-sm-8">@Model.CreatedDate.ToLocalTime().ToString("MMMM dd, yyyy HH:mm")</dd>
+                    </dl>
+
+                    <form asp-action="Delete" method="post">
+                        <input type="hidden" asp-for="TrafficAnalysisID" />
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Delete Ticket
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

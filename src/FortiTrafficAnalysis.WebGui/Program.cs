@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using FortiTrafficAnalysis.Data;
 using FortiTrafficAnalysis.Services.Authorization;
 using FortiTrafficAnalysis.Services.Authentication;
+using FortiTrafficAnalysis.Services.LogParsing;
+using FortiTrafficAnalysis.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<ILocalAuthenticationService, LocalAuthenticationService>();
 builder.Services.AddScoped<IUserAuthorizationService, UserAuthorizationService>();
 builder.Services.AddScoped<IAuthorizationHandler, AppRoleAuthorizationHandler>();
+
+// Register log parsing services
+builder.Services.AddScoped<IFortiGateLogParserService, FortiGateLogParserService>();
+
+// Register ticket number generator
+builder.Services.AddSingleton<ITicketNumberGenerator, TicketNumberGenerator>();
 
 // Configure authorization policies
 builder.Services.AddAuthorization(options =>

@@ -1,0 +1,191 @@
+@model FortiTrafficAnalysis.WebGui.Models.CreateTrafficAnalysisViewModel
+
+@{
+    ViewData["Title"] = "Create Traffic Analysis Ticket";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Create New Traffic Analysis Ticket</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+                        
+                        @if (!ViewData.ModelState.IsValid)
+                        {
+                            <div class="alert alert-danger">
+                                <h5><i class="bi bi-exclamation-triangle"></i> Validation Errors:</h5>
+                                <ul>
+                                    @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                                    {
+                                        <li>@error.ErrorMessage</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        
+                        <div asp-validation-summary="All" class="alert alert-danger"></div>
+                        
+                        <div class="mb-3">
+                            <label asp-for="Summary" class="form-label"></label>
+                            <input asp-for="Summary" class="form-control" placeholder="Brief summary of the analysis" maxlength="200" />
+                            <span asp-validation-for="Summary" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label"></label>
+                            <textarea asp-for="Description" class="form-control" rows="4" placeholder="Detailed description of what you're analyzing..." maxlength="2000"></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                            <small class="form-text text-muted">Optional - Provide additional context about this analysis</small>
+                        </div>
+
+                        <hr class="my-4">
+                        <h5 class="mb-3">Select FortiGate Device</h5>
+                        <p class="text-muted small">Choose the customer, service, and FortiGate device for this analysis</p>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="customerSelect" class="form-label">Customer</label>
+                                <select id="customerSelect" class="form-select">
+                                    <option value="">-- Select Customer --</option>
+                                    @foreach (var customer in ViewBag.Customers as SelectList)
+                                    {
+                                        <option value="@customer.Value">@customer.Text</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="serviceSelect" class="form-label">Service</label>
+                                <select id="serviceSelect" class="form-select" disabled>
+                                    <option value="">-- Select Service --</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="FGID" class="form-label">FortiGate Device</label>
+                                <select asp-for="FGID" id="fortiGateSelect" class="form-select" disabled>
+                                    <option value="">-- Select FortiGate --</option>
+                                </select>
+                                <span asp-validation-for="FGID" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                                <i class="bi bi-save"></i> Create Ticket
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    
+    <script>
+        $(document).ready(function() {
+            console.log('TrafficAnalysis Create page loaded');
+
+            // Customer selection
+            $('#customerSelect').change(function() {
+                var customerId = $(this).val();
+                console.log('Customer selected:', customerId);
+                
+                $('#serviceSelect').prop('disabled', true).html('<option value="">-- Select Service --</option>');
+                $('#fortiGateSelect').prop('disabled', true).html('<option value="">-- Select FortiGate --</option>');
+                $('#submitBtn').prop('disabled', true);
+
+                if (customerId) {
+                    $.get('@Url.Action("GetServicesForCustomer", "TrafficAnalysis")', { customerId: customerId }, function(services) {
+                        console.log('Services loaded:', services.length);
+                        if (services.length > 0) {
+                            services.forEach(function(service) {
+                                $('#serviceSelect').append($('<option></option>').val(service.value).text(service.text));
+                            });
+                            $('#serviceSelect').prop('disabled', false);
+                        } else {
+                            alert('No services found for this customer. Please create a service first.');
+                        }
+                    }).fail(function(error) {
+                        console.error('Error loading services:', error);
+                        alert('Error loading services. Check browser console for details.');
+                    });
+                }
+            });
+
+            // Service selection
+            $('#serviceSelect').change(function() {
+                var serviceId = $(this).val();
+                console.log('Service selected:', serviceId);
+                
+                $('#fortiGateSelect').prop('disabled', true).html('<option value="">-- Select FortiGate --</option>');
+                $('#submitBtn').prop('disabled', true);
+
+                if (serviceId) {
+                    $.get('@Url.Action("GetFortiGatesForService", "TrafficAnalysis")', { serviceId: serviceId }, function(devices) {
+                        console.log('FortiGates loaded:', devices.length);
+                        if (devices.length > 0) {
+                            devices.forEach(function(device) {
+                                $('#fortiGateSelect').append($('<option></option>').val(device.value).text(device.text));
+                            });
+                            $('#fortiGateSelect').prop('disabled', false);
+                        } else {
+                            alert('No FortiGate devices found for this service. Please create a FortiGate device first.');
+                        }
+                    }).fail(function(error) {
+                        console.error('Error loading FortiGates:', error);
+                        alert('Error loading FortiGates. Check browser console for details.');
+                    });
+                }
+            });
+
+            // FortiGate selection
+            $('#fortiGateSelect').change(function() {
+                var fgSelected = $(this).val();
+                console.log('FortiGate selected:', fgSelected);
+                $('#submitBtn').prop('disabled', fgSelected === '');
+                
+                if (fgSelected !== '') {
+                    console.log('Submit button enabled!');
+                }
+            });
+
+            // Form submission
+            $('form').on('submit', function(e) {
+                console.log('Form submitting...');
+                
+                // Check Summary field
+                var summary = $('#Summary').val();
+                console.log('Summary value:', summary);
+                
+                var fgid = $('#fortiGateSelect').val();
+                console.log('FGID value:', fgid);
+                
+                if (!summary || summary.trim() === '') {
+                    e.preventDefault();
+                    alert('Please enter a Summary for the ticket');
+                    return false;
+                }
+                
+                if (!fgid) {
+                    e.preventDefault();
+                    alert('Please select a FortiGate device');
+                    return false;
+                }
+                
+                console.log('Form validation passed, submitting...');
+            });
+        });
+    </script>
+}

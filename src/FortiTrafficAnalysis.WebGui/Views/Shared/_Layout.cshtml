@@ -30,8 +30,8 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-light" asp-area="" asp-controller="TrafficLogs" asp-action="Index">
-                                    <i class="bi bi-file-earmark-text"></i> Traffic Logs
+                                <a class="nav-link text-light" asp-area="" asp-controller="TrafficAnalysis" asp-action="Index">
+                                    <i class="bi bi-clipboard-data"></i> Traffic Analysis
                                 </a>
                             </li>
                             @if (User.IsInRole("Admins"))
@@ -41,6 +41,8 @@
                                         <i class="bi bi-gear"></i> Administration
                                     </a>
                                     <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="Index">Admin Dashboard</a></li>
+                                        <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="AppUsers" asp-action="Index">App Users</a></li>
                                         <li><a class="dropdown-item" asp-controller="Customers" asp-action="Index">Customers</a></li>
                                         <li><a class="dropdown-item" asp-controller="FTAServices" asp-action="Index">FTA Services</a></li>

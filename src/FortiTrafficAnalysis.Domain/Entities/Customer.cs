@@ -20,13 +20,11 @@ namespace FortiTrafficAnalysis.Domain.Entities
 
         // Navigation properties
         public virtual ICollection<FTAService> FTAServices { get; set; }
-        public virtual ICollection<TrafficLog> TrafficLogs { get; set; }
 
         public Customer()
         {
             CustomerID = Guid.NewGuid();
             FTAServices = new HashSet<FTAService>();
-            TrafficLogs = new HashSet<TrafficLog>();
         }
     }
 }
