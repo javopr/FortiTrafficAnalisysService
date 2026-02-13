@@ -1,0 +1,361 @@
+@model FortiTrafficAnalysis.Domain.Entities.TrafficAnalysis
+
+@{
+    ViewData["Title"] = "AI Analysis - " + Model.TicketNumber;
+}
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <h2><i class="bi bi-robot"></i> AI Analysis</h2>
+            <p class="text-muted">
+                <strong>Ticket:</strong> <code>@Model.TicketNumber</code> - @Model.Summary
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a asp-action="Details" asp-route-id="@Model.TrafficAnalysisID" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Ticket
+            </a>
+        </div>
+    </div>
+
+    <!-- Selected Logs Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-check"></i> Selected Logs for Analysis (<span id="selectedLogCount">0</span>)</h5>
+            <button class="btn btn-sm btn-light" id="clearAllBtn">
+                <i class="bi bi-x-circle"></i> Clear All
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="selectedLogsContainer">
+                <div class="text-center py-5" id="emptyState">
+                    <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                    <p class="text-muted mt-3">No logs selected yet. Go back to the ticket and select logs to analyze.</p>
+                    <a asp-action="Details" asp-route-id="@Model.TrafficAnalysisID" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Go to Ticket
+                    </a>
+                </div>
+                
+                <div class="table-responsive d-none" id="logsTable">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>Date</th>
+                                <th>Src IP</th>
+                                <th>Src Port</th>
+                                <th>Dst IP</th>
+                                <th>Dst Port</th>
+                                <th>Proto</th>
+                                <th>Action</th>
+                                <th>Service</th>
+                            </tr>
+                        </thead>
+                        <tbody id="selectedLogsBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Assistant Section -->
+    <div class="card mb-4" id="aiAssistantSection">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-robot"></i> AI Assistant (Powered by GPT-4.1)</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> <strong>AI-Powered Analysis:</strong> Ask questions about the selected logs in natural language.
+                <hr>
+                <strong>Example questions:</strong>
+                <ul class="mb-0 mt-2">
+                    <li>"Create a FortiGate policy to allow this traffic"</li>
+                    <li>"Why is traffic from 192.168.1.10 being denied?"</li>
+                    <li>"Explain the security risks of allowing port 22"</li>
+                    <li>"Show me CLI commands for these denied connections"</li>
+                    <li>"Summarize the traffic patterns in these logs"</li>
+                </ul>
+            </div>
+
+            <!-- Conversation History -->
+            <div id="aiConversationHistory" style="max-height: 600px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.25rem; padding: 1rem; background-color: #f8f9fa;" class="mb-3">
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-chat-left-dots" style="font-size: 2rem;"></i>
+                    <p class="mt-2">No conversation yet. Ask a question to get started!</p>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-group">
+                <input type="text" id="aiQuestionInput" class="form-control" 
+                       placeholder="Ask AI about the selected logs..." 
+                       maxlength="500">
+                <button class="btn btn-info" id="askAIBtn" disabled>
+                    <i class="bi bi-send"></i> Ask AI
+                </button>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+                <small class="text-muted">
+                    <i class="bi bi-check-square"></i> <span id="selectedLogsForAI">0</span> logs in context
+                </small>
+                <small class="text-muted">
+                    <i class="bi bi-clock-history"></i> Response time: ~5-10 seconds
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var ticketId = '@Model.TrafficAnalysisID';
+    var selectedLogIds = [];
+    var selectedLogsData = [];
+
+    $(document).ready(function() {
+        // Load selected logs from sessionStorage
+        loadSelectedLogs();
+
+        // Clear all button
+        $('#clearAllBtn').click(function() {
+            if (confirm('Clear all selected logs?')) {
+                sessionStorage.removeItem('selectedLogIds');
+                selectedLogIds = [];
+                selectedLogsData = [];
+                updateUI();
+            }
+        });
+
+        // AI Question Input - Enable button
+        $('#aiQuestionInput').on('input', function() {
+            var question = $(this).val().trim();
+            var hasLogs = selectedLogIds.length > 0;
+            $('#askAIBtn').prop('disabled', !question || !hasLogs);
+        });
+
+        $('#aiQuestionInput').on('keypress', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                if (!$('#askAIBtn').prop('disabled')) {
+                    askAI();
+                }
+            }
+        });
+
+        $('#askAIBtn').click(function() {
+            askAI();
+        });
+    });
+
+    function loadSelectedLogs() {
+        var stored = sessionStorage.getItem('selectedLogIds');
+        if (!stored) {
+            updateUI();
+            return;
+        }
+
+        selectedLogIds = JSON.parse(stored);
+        
+        if (selectedLogIds.length === 0) {
+            updateUI();
+            return;
+        }
+
+        // Fetch log details from server
+        $.ajax({
+            url: '@Url.Action("GetLogsByIds", "TrafficAnalysis")',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ ticketId: ticketId, logIds: selectedLogIds }),
+            success: function(response) {
+                if (response.success) {
+                    selectedLogsData = response.logs;
+                    renderSelectedLogs();
+                    updateUI();
+                } else {
+                    console.error('Error loading logs:', response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading logs:', error);
+            }
+        });
+    }
+
+    function renderSelectedLogs() {
+        var html = '';
+        selectedLogsData.forEach(function(log, index) {
+            html += '<tr>';
+            html += '<td><button class="btn btn-sm btn-danger remove-log" data-index="' + index + '"><i class="bi bi-x"></i></button></td>';
+            html += '<td>' + formatDate(log.logDate) + '</td>';
+            html += '<td><code>' + (log.srcIP || '') + '</code></td>';
+            html += '<td>' + (log.srcPort || '') + '</td>';
+            html += '<td><code>' + (log.dstIP || '') + '</code></td>';
+            html += '<td>' + (log.dstPort || '') + '</td>';
+            html += '<td>' + (log.proto || '') + '</td>';
+            html += '<td>' + getActionBadge(log.action) + '</td>';
+            html += '<td>' + (log.service || '') + '</td>';
+            html += '</tr>';
+        });
+
+        $('#selectedLogsBody').html(html);
+
+        // Attach remove handlers
+        $('.remove-log').click(function() {
+            var index = $(this).data('index');
+            selectedLogIds.splice(index, 1);
+            selectedLogsData.splice(index, 1);
+            sessionStorage.setItem('selectedLogIds', JSON.stringify(selectedLogIds));
+            renderSelectedLogs();
+            updateUI();
+        });
+    }
+
+    function updateUI() {
+        $('#selectedLogCount').text(selectedLogIds.length);
+        $('#selectedLogsForAI').text(selectedLogIds.length);
+
+        if (selectedLogIds.length === 0) {
+            $('#emptyState').removeClass('d-none');
+            $('#logsTable').addClass('d-none');
+            $('#askAIBtn').prop('disabled', true);
+        } else {
+            $('#emptyState').addClass('d-none');
+            $('#logsTable').removeClass('d-none');
+        }
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        var date = new Date(dateStr);
+        return date.toLocaleDateString();
+    }
+
+    function getActionBadge(action) {
+        if (!action) return '';
+        var badgeClass = 'bg-secondary';
+        if (action === 'accept') badgeClass = 'bg-success';
+        else if (action === 'deny') badgeClass = 'bg-danger';
+        else if (action.includes('rst')) badgeClass = 'bg-warning';
+        return '<span class="badge ' + badgeClass + '">' + action + '</span>';
+    }
+
+    // AI Functions
+    function askAI() {
+        var question = $('#aiQuestionInput').val().trim();
+        
+        if (!question) {
+            alert('Please enter a question');
+            return;
+        }
+        
+        if (selectedLogIds.length === 0) {
+            alert('No logs selected for analysis');
+            return;
+        }
+
+        $('#aiConversationHistory .text-center').remove();
+        $('#askAIBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Thinking...');
+        $('#aiQuestionInput').prop('disabled', true);
+
+        appendAIMessage('user', question);
+
+        $.ajax({
+            url: '@Url.Action("AskAI", "TrafficAnalysis")' + '/' + ticketId,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                question: question,
+                selectedLogIds: selectedLogIds
+            }),
+            success: function(response) {
+                if (response.success) {
+                    appendAIMessage('ai', response.response);
+                    $('#aiQuestionInput').val('');
+                } else {
+                    appendAIMessage('error', response.message || 'Unknown error occurred');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AI Error:', error);
+                appendAIMessage('error', 'AI service is temporarily unavailable. Please try again later.');
+            },
+            complete: function() {
+                $('#askAIBtn').prop('disabled', selectedLogIds.length === 0)
+                    .html('<i class="bi bi-send"></i> Ask AI');
+                $('#aiQuestionInput').prop('disabled', false).focus();
+            }
+        });
+    }
+
+    function appendAIMessage(type, message) {
+        var timestamp = new Date().toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        var html = '';
+        
+        if (type === 'user') {
+            html = `
+                <div class="d-flex justify-content-end mb-3">
+                    <div class="bg-primary text-white rounded p-3 shadow-sm" style="max-width: 70%;">
+                        <strong><i class="bi bi-person-circle"></i> You:</strong>
+                        <div class="mt-2">${escapeHtml(message)}</div>
+                        <small class="text-white-50 d-block mt-2"><i class="bi bi-clock"></i> ${timestamp}</small>
+                    </div>
+                </div>`;
+        } else if (type === 'ai') {
+            var formattedMessage = formatAIResponse(message);
+            html = `
+                <div class="d-flex justify-content-start mb-3">
+                    <div class="bg-white border rounded p-3 shadow-sm" style="max-width: 85%;">
+                        <strong><i class="bi bi-robot text-info"></i> AI Assistant:</strong>
+                        <div class="ai-response mt-2">${formattedMessage}</div>
+                        <small class="text-muted d-block mt-2"><i class="bi bi-clock"></i> ${timestamp}</small>
+                    </div>
+                </div>`;
+        } else if (type === 'error') {
+            html = `
+                <div class="alert alert-danger mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Error:</strong> ${escapeHtml(message)}
+                </div>`;
+        }
+        
+        $('#aiConversationHistory').append(html);
+        $('#aiConversationHistory').animate({ 
+            scrollTop: $('#aiConversationHistory')[0].scrollHeight 
+        }, 300);
+    }
+
+    function formatAIResponse(message) {
+        message = message.replace(/```([\s\S]*?)```/g, function(match, code) {
+            return '<pre class="bg-dark text-white p-3 rounded my-2" style="overflow-x: auto;"><code>' + 
+                   escapeHtml(code.trim()) + '</code></pre>';
+        });
+        
+        message = message.replace(/`([^`]+)`/g, '<code class="bg-light px-2 py-1 rounded text-danger">$1</code>');
+        message = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        message = message.replace(/^- (.+)$/gm, '<li>$1</li>');
+        message = message.replace(/(<li>.*<\/li>)/s, '<ul class="mt-2 mb-2">$1</ul>');
+        message = message.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+        message = message.replace(/\n/g, '<br>');
+        
+        return message;
+    }
+
+    function escapeHtml(text) {
+        var map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+</script>
+}

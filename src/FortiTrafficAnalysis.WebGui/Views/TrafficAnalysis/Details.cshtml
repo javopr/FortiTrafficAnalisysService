@@ -104,11 +104,11 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <span><i class="bi bi-list-ul"></i> Traffic Logs:</span>
-                        <span class="badge bg-info fs-6">@Model.TrafficLogs.Count</span>
+                        <span class="badge bg-info fs-6">@ViewBag.LogCount</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-lightbulb"></i> Recommendations:</span>
-                        <span class="badge bg-warning fs-6">@Model.Recommendations.Count</span>
+                        <span class="badge bg-warning fs-6">@ViewBag.RecommendationCount</span>
                     </div>
                 </div>
             </div>
@@ -146,12 +146,76 @@
     <!-- Log Ingestion Section -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-upload"></i> Log Ingestion</h5>
+            <h5 class="mb-0"><i class="bi bi-upload"></i> Log Ingestion & Configuration</h5>
         </div>
         <div class="card-body">
-            <p class="text-muted">Import traffic logs from FortiGate or FortiAnalyzer to begin analysis.</p>
+            <p class="text-muted">Import traffic logs and FortiGate configuration for AI-powered analysis.</p>
             
             <div class="row">
+                <!-- FortiGate Config Upload -->
+                <div class="col-lg-6 mb-3">
+                    <div class="card h-100 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="bi bi-gear-fill"></i> Upload FortiGate Configuration</h6>
+                        </div>
+                        <div class="card-body">
+                            @if (Model.FortiGate?.ConfigUploadedDate != null)
+                            {
+                                var configSize = Model.FortiGate.ConfigFile?.Length ?? 0;
+                                var configLines = Model.FortiGate.ConfigFile?.Split('\n').Length ?? 0;
+                                var configKB = configSize / 1024.0;
+                                
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle"></i> Configuration file uploaded on 
+                                    <strong>@Model.FortiGate.ConfigUploadedDate.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</strong>
+                                    <div class="mt-2">
+                                        <small class="d-block text-muted">
+                                            <i class="bi bi-file-text"></i> @configLines.ToString("N0") lines 
+                                            | <i class="bi bi-hdd"></i> @configKB.ToString("F2") KB
+                                        </small>
+                                        <div class="btn-group mt-2" role="group">
+                                            <a asp-action="ViewConfig" asp-route-id="@Model.TrafficAnalysisID" 
+                                               class="btn btn-sm btn-outline-success" target="_blank">
+                                                <i class="bi bi-eye"></i> View Configuration
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-info" 
+                                                    onclick="checkConfigIntegrity('@Model.TrafficAnalysisID')">
+                                                <i class="bi bi-shield-check"></i> Verify Integrity
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> No configuration file uploaded yet.
+                                    <br><small>Upload a config file to improve AI recommendations.</small>
+                                </div>
+                            }
+                            
+                            <form asp-action="UploadConfigFile" asp-route-id="@Model.TrafficAnalysisID" method="post" enctype="multipart/form-data">
+                                @Html.AntiForgeryToken()
+                                
+                                <div class="mb-3">
+                                    <label for="configFile" class="form-label">Select Configuration File</label>
+                                    <input type="file" class="form-control" id="configFile" name="configFile" accept=".conf,.cfg,.txt" required>
+                                    <small class="form-text text-muted">
+                                        Accepted formats: .conf, .cfg, .txt (Max 10MB)
+                                        <br><strong>Tip:</strong> Export config from FortiGate CLI: <code>show full-configuration</code>
+                                    </small>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-info">
+                                        <i class="bi bi-upload"></i> @(Model.FortiGate?.ConfigUploadedDate != null ? "Update Configuration" : "Upload Configuration")
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- FortiGate Log File Upload (IMPLEMENTED) -->
                 <div class="col-lg-6 mb-3">
                     <div class="card h-100">
@@ -216,19 +280,16 @@
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-table"></i> Traffic Logs (<span id="logCount">@Model.TrafficLogs.Count</span>)</h5>
             <div>
-                <a href="#recommendationsSection" class="btn btn-sm btn-info me-2">
-                    <i class="bi bi-arrow-down-circle"></i> Jump to Recommendations
-                </a>
                 <button class="btn btn-sm btn-light" id="refreshLogsBtn">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
-                <button class="btn btn-sm btn-warning" id="analyzeSelectedBtn" disabled>
-                    <i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">0</span>)
+                <button class="btn btn-sm btn-warning" id="addToAnalysisBtn" disabled>
+                    <i class="bi bi-plus-circle"></i> Add to Analysis (<span id="selectedCount">0</span>)
                 </button>
             </div>
         </div>
         <div class="card-body">
-            @if (Model.TrafficLogs.Any())
+            @if (ViewBag.LogCount > 0)
             {
                 <!-- Basic Filter Controls -->
                 <div class="row mb-3">
@@ -403,41 +464,6 @@
             }
         </div>
     </div>
-
-    <!-- Recommendations Section -->
-    <div class="card" id="recommendationsSection">
-        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Policy Recommendations (@Model.Recommendations.Count)</h5>
-            <a href="#logsSection" class="btn btn-sm btn-secondary">
-                <i class="bi bi-arrow-up-circle"></i> Back to Logs
-            </a>
-        </div>
-        <div class="card-body">
-            @if (Model.Recommendations.Any())
-            {
-                <div class="list-group">
-                    @foreach (var recommendation in Model.Recommendations.OrderByDescending(r => r.CreatedDate))
-                    {
-                        <div class="list-group-item">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">@recommendation.Title</h6>
-                                <small class="text-muted">@recommendation.CreatedDate.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
-                            </div>
-                            <p class="mb-1">@recommendation.RecommendationText</p>
-                            <small class="text-muted">Created by: @recommendation.CreatedByUPN</small>
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="text-center py-4">
-                    <i class="bi bi-lightbulb-off" style="font-size: 2rem; color: #ccc;"></i>
-                    <p class="text-muted mt-2">No recommendations yet. Analyze traffic logs to generate policy recommendations.</p>
-                </div>
-            }
-        </div>
-    </div>
 </div>
 
 @section Scripts {
@@ -454,86 +480,163 @@
     console.log('Ticket ID type:', typeof ticketId);
 
     $(document).ready(function() {
+        // Restore selected logs from sessionStorage if coming back from Analysis
+        restoreSelections();
+        
         // Load logs on page load
         loadLogs();
 
-            // Refresh button
-            $('#refreshLogsBtn').click(function() {
-                loadLogs();
-            });
-
-            // Filter controls - reset to page 1 when filtering
-            $('#searchBox, #filterAction, #filterSrcIp, #filterDstIp, #filterProto').on('input change', function() {
-                currentPage = 1;
-                loadLogs();
-            });
-
-            // Clear filters
-            $('#clearFiltersBtn').click(function() {
-                $('#searchBox').val('');
-                $('#filterAction').val('');
-                $('#filterSrcIp').val('');
-                $('#filterDstIp').val('');
-                $('#filterProto').val('');
-                
-                // Clear advanced filters
-                $('#filterSrcPort').val('');
-                $('#filterDstPort').val('');
-                $('#filterSrcIntf').val('');
-                $('#filterDstIntf').val('');
-                $('#filterService').val('');
-                $('#filterPolicyId').val('');
-                $('#filterPolicyName').val('');
-                $('#filterLogId').val('');
-                $('#filterSessionId').val('');
-                $('#filterDateFrom').val('');
-                $('#filterDateTo').val('');
-                
-                currentPage = 1; // Reset to first page
-                loadLogs();
-            });
-
-            // Apply advanced filters button
-            $('#applyAdvancedFiltersBtn').click(function() {
-                currentPage = 1; // Reset to first page
-                loadLogs();
-            });
-
-            // Also trigger on Enter key in advanced filter inputs
-            $('#advancedFilters input').on('keypress', function(e) {
-                if (e.which === 13) {
-                    currentPage = 1; // Reset to first page
-                    loadLogs();
-                }
-            });
-
-            // Column visibility toggles
-            $('#col-service, #col-policyname, #col-bytes, #col-duration').change(function() {
-                var column = $(this).attr('id');
-                var isVisible = $(this).is(':checked');
-                $('.' + column).toggle(isVisible);
-            });
-
-            // Initialize column visibility
-            $('.col-bytes, .col-duration').hide();
-
-            // Select all checkbox
-            $('#selectAll').change(function() {
-                var isChecked = $(this).is(':checked');
-                $('.log-checkbox:visible').prop('checked', isChecked).trigger('change');
-            });
-
-            // Analyze selected button
-            $('#analyzeSelectedBtn').click(function() {
-                if (selectedLogIds.length === 0) {
-                    alert('Please select at least one log entry');
-                    return;
-                }
-                analyzeSelectedLogs();
-            });
+        // Refresh button
+        $('#refreshLogsBtn').click(function() {
+            loadLogs();
         });
 
-        function loadLogs() {
+        // Filter controls - reset to page 1 when filtering
+        $('#searchBox, #filterAction, #filterSrcIp, #filterDstIp, #filterProto').on('input change', function() {
+            currentPage = 1;
+            loadLogs();
+        });
+
+        // Clear filters
+        $('#clearFiltersBtn').click(function() {
+            $('#searchBox').val('');
+            $('#filterAction').val('');
+            $('#filterSrcIp').val('');
+            $('#filterDstIp').val('');
+            $('#filterProto').val('');
+            
+            // Clear advanced filters
+            $('#filterSrcPort').val('');
+            $('#filterDstPort').val('');
+            $('#filterSrcIntf').val('');
+            $('#filterDstIntf').val('');
+            $('#filterService').val('');
+            $('#filterPolicyId').val('');
+            $('#filterPolicyName').val('');
+            $('#filterLogId').val('');
+            $('#filterSessionId').val('');
+            $('#filterDateFrom').val('');
+            $('#filterDateTo').val('');
+            
+            currentPage = 1;
+            loadLogs();
+        });
+
+        // Apply advanced filters button
+        $('#applyAdvancedFiltersBtn').click(function() {
+            currentPage = 1;
+            loadLogs();
+        });
+
+        // Also trigger on Enter key in advanced filter inputs
+        $('#advancedFilters input').on('keypress', function(e) {
+            if (e.which === 13) {
+                currentPage = 1;
+                loadLogs();
+            }
+        });
+
+        // Column visibility toggles
+        $('#col-service, #col-policyname, #col-bytes, #col-duration').change(function() {
+            var column = $(this).attr('id');
+            var isVisible = $(this).is(':checked');
+            $('.' + column).toggle(isVisible);
+        });
+
+        // Initialize column visibility
+        $('.col-bytes, .col-duration').hide();
+
+        // Select all checkbox
+        $('#selectAll').change(function() {
+            var isChecked = $(this).is(':checked');
+            $('.log-checkbox:visible').prop('checked', isChecked).trigger('change');
+        });
+
+        // Analyze selected button - redirect to Analysis page
+        $('#addToAnalysisBtn').click(function() {
+            if (selectedLogIds.length === 0) {
+                alert('Please select at least one log entry');
+                return;
+            }
+            
+            // Store selected log IDs in sessionStorage
+            sessionStorage.setItem('selectedLogIds', JSON.stringify(selectedLogIds));
+            
+            // Redirect to Analysis page
+            window.location.href = '@Url.Action("Analyze", "TrafficAnalysis")' + '/' + ticketId;
+        });
+
+        // ========================
+        // AI CHAT EVENT HANDLERS
+        // ========================
+
+        // AI Question Input - Enable button and handle Enter key
+        $('#aiQuestionInput').on('input', function() {
+            var question = $(this).val().trim();
+            var hasLogs = selectedLogIds.length > 0;
+            $('#askAIBtn').prop('disabled', !question || !hasLogs);
+        });
+
+        $('#aiQuestionInput').on('keypress', function(e) {
+            if (e.which === 13) { // Enter key
+                e.preventDefault();
+                if (!$('#askAIBtn').prop('disabled')) {
+                    askAI();
+                }
+            }
+        });
+
+        // Ask AI Button Click
+        $('#askAIBtn').click(function() {
+            console.log('Ask AI button clicked!');
+            console.log('Selected logs:', selectedLogIds.length);
+            console.log('Question:', $('#aiQuestionInput').val());
+            askAI();
+        });
+    });
+
+    function restoreSelections() {
+        var stored = sessionStorage.getItem('selectedLogIds');
+        if (stored) {
+            selectedLogIds = JSON.parse(stored);
+            console.log('Restored', selectedLogIds.length, 'selected log IDs from sessionStorage');
+        }
+    }
+
+    function checkConfigIntegrity(ticketId) {
+        $.ajax({
+            url: '@Url.Action("ConfigDiagnostics", "TrafficAnalysis")' + '/' + ticketId,
+            type: 'GET',
+            success: function(data) {
+                if (data.success) {
+                    var message = `Configuration File Diagnostics:\n\n`;
+                    message += `FortiGate: ${data.fortiGateHostname}\n`;
+                    message += `Uploaded: ${new Date(data.configUploadedDate).toLocaleString()}\n\n`;
+                    message += `File Size:\n`;
+                    message += `- Original: ${data.decompressedSizeKB.toFixed(2)} KB (${data.lineCount.toLocaleString()} lines)\n`;
+                    message += `- Compressed: ${data.compressedSizeKB.toFixed(2)} KB\n`;
+                    message += `- Compression Ratio: ${data.compressionRatio.toFixed(1)}%\n\n`;
+                    message += `Integrity Checks:\n`;
+                    message += `? Has 'config' keyword: ${data.hasConfigKeyword ? 'YES' : 'NO'}\n`;
+                    message += `? Has 'end' keyword: ${data.hasEndKeyword ? 'YES' : 'NO'}\n`;
+                    message += `? Has system section: ${data.hasSystemSection ? 'YES' : 'NO'}\n`;
+                    message += `? Has firewall section: ${data.hasFirewallSection ? 'YES' : 'NO'}\n\n`;
+                    message += `Checksum (SHA256): ${data.checksum}\n\n`;
+                    message += `First lines:\n${data.firstLines.join('\n')}\n\n`;
+                    message += `Last lines:\n${data.lastLines.join('\n')}`;
+                    
+                    alert(message);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('Error checking config integrity: ' + error);
+            }
+        });
+    }
+
+    function loadLogs() {
             console.log('loadLogs() called - Page:', currentPage, 'PageSize:', pageSize);
             
             // Build data object with only non-empty values
@@ -781,6 +884,8 @@
                 updateSelectAllCheckbox();
             });
             
+            // Update counter with restored selections
+            updateSelectedCount();
             updateSelectAllCheckbox();
         }
 
@@ -801,7 +906,7 @@
 
         function updateSelectedCount() {
             $('#selectedCount').text(selectedLogIds.length);
-            $('#analyzeSelectedBtn').prop('disabled', selectedLogIds.length === 0);
+            $('#addToAnalysisBtn').prop('disabled', selectedLogIds.length === 0);
         }
 
         function getActionBadge(action) {
@@ -839,7 +944,7 @@
                 return;
             }
 
-            $('#analyzeSelectedBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Analyzing...');
+            $('#addToAnalysisBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Analyzing...');
 
             $.ajax({
                 url: '@Url.Action("AnalyzeSelected", "TrafficAnalysis")' + '?id=' + ticketId,
@@ -850,18 +955,18 @@
                     console.log('Analysis response:', response);
                     
                     if (response.success) {
-                        alert(`? Success!\n\n${response.message}\n\nThe page will reload to show the recommendations.`);
+                        alert('Success!\n\n' + response.message + '\n\nThe page will reload to show the recommendations.');
                         window.location.reload();
                     } else {
-                        alert(`? Error: ${response.message}`);
-                        $('#analyzeSelectedBtn').prop('disabled', false).html('<i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
+                        alert('Error: ' + response.message);
+                        $('#addToAnalysisBtn').prop('disabled', false).html('<i class="bi bi-plus-circle"></i> Add to Analysis (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('Analysis error:', error);
                     console.error('Response:', xhr.responseText);
-                    alert(`? Error analyzing logs: ${error}\n\nCheck console for details.`);
-                    $('#analyzeSelectedBtn').prop('disabled', false).html('<i class="bi bi-lightbulb"></i> Analyze Selected (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
+                    alert('Error analyzing logs: ' + error + '\n\nCheck console for details.');
+                    $('#addToAnalysisBtn').prop('disabled', false).html('<i class="bi bi-plus-circle"></i> Add to Analysis (<span id="selectedCount">' + selectedLogIds.length + '</span>)');
                 }
             });
         }

@@ -8,6 +8,7 @@ using FortiTrafficAnalysis.Services.Authentication;
 using FortiTrafficAnalysis.Services.LogParsing;
 using FortiTrafficAnalysis.Services;
 using FortiTrafficAnalysis.Services.Recommendations;
+using FortiTrafficAnalysis.Services.AI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,9 +33,15 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add(new AuthorizeFilter(policy));
 });
 
-// Configure DbContext
+// Configure DbContext with retry logic for transient failures
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptions => sqlServerOptions
+            .EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null)));
 
 // Register authentication and authorization services
 builder.Services.AddScoped<ILocalAuthenticationService, LocalAuthenticationService>();
@@ -49,6 +56,9 @@ builder.Services.AddSingleton<ITicketNumberGenerator, TicketNumberGenerator>();
 
 // Register recommendation service
 builder.Services.AddScoped<IPolicyRecommendationService, PolicyRecommendationService>();
+
+// Register AI recommendation service
+builder.Services.AddScoped<IAIRecommendationService, AzureOpenAIService>();
 
 // Configure authorization policies
 builder.Services.AddAuthorization(options =>

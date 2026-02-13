@@ -25,6 +25,7 @@ namespace FortiTrafficAnalysis.Data
         public DbSet<TrafficLog> TrafficLogs { get; set; }
         public DbSet<TrafficAnalysis> TrafficAnalyses { get; set; }
         public DbSet<TrafficAnalysisRecommendation> TrafficAnalysisRecommendations { get; set; }
+        public DbSet<AIConversation> AIConversations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -39,6 +40,7 @@ namespace FortiTrafficAnalysis.Data
             ConfigureTrafficLog(modelBuilder);
             ConfigureTrafficAnalysis(modelBuilder);
             ConfigureTrafficAnalysisRecommendation(modelBuilder);
+            ConfigureAIConversation(modelBuilder);
 
             // Seed initial data
             SeedData(modelBuilder);
@@ -193,6 +195,27 @@ namespace FortiTrafficAnalysis.Data
 
                 entity.HasIndex(e => e.TrafficAnalysisID);
                 entity.HasIndex(e => e.CreatedDate);
+            });
+        }
+
+        private void ConfigureAIConversation(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AIConversation>(entity =>
+            {
+                entity.HasKey(e => e.ConversationID);
+                entity.Property(e => e.UserQuestion).IsRequired();
+                entity.Property(e => e.AIResponse).IsRequired();
+                entity.Property(e => e.CreatedByUPN).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.CreatedDate).IsRequired();
+
+                entity.HasOne(e => e.TrafficAnalysis)
+                    .WithMany()
+                    .HasForeignKey(e => e.TrafficAnalysisID)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.TrafficAnalysisID);
+                entity.HasIndex(e => e.CreatedDate);
+                entity.HasIndex(e => e.CreatedByUPN);
             });
         }
 

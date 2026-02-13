@@ -9,6 +9,7 @@ using FortiTrafficAnalysis.WebGui.Models;
 using FortiTrafficAnalysis.Services.LogParsing;
 using FortiTrafficAnalysis.Services;
 using FortiTrafficAnalysis.Services.Recommendations;
+using FortiTrafficAnalysis.Services.AI;
 
 namespace FortiTrafficAnalysis.WebGui.Controllers
 {
@@ -20,19 +21,22 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
         private readonly IFortiGateLogParserService _logParser;
         private readonly ITicketNumberGenerator _ticketNumberGenerator;
         private readonly IPolicyRecommendationService _recommendationService;
+        private readonly IAIRecommendationService _aiService;
 
         public TrafficAnalysisController(
             ApplicationDbContext context,
             ILogger<TrafficAnalysisController> logger,
             IFortiGateLogParserService logParser,
             ITicketNumberGenerator ticketNumberGenerator,
-            IPolicyRecommendationService recommendationService)
+            IPolicyRecommendationService recommendationService,
+            IAIRecommendationService aiService)
         {
             _context = context;
             _logger = logger;
             _logParser = logParser;
             _ticketNumberGenerator = ticketNumberGenerator;
             _recommendationService = recommendationService;
+            _aiService = aiService;
         }
 
         // GET: TrafficAnalysis
@@ -40,17 +44,66 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
         {
             var currentUserUPN = User.Identity?.Name;
             
+            // Optimized query - don't load logs and recommendations, just get counts
             var analyses = await _context.TrafficAnalyses
                 .Include(t => t.FortiGate)
                     .ThenInclude(f => f.FTAService)
                         .ThenInclude(s => s.Customer)
-                .Include(t => t.TrafficLogs)
-                .Include(t => t.Recommendations)
                 .Where(t => User.IsInRole("Admins") || t.CreatedByUPN == currentUserUPN)
+                .Select(t => new
+                {
+                    t.TrafficAnalysisID,
+                    t.TicketNumber,
+                    t.Summary,
+                    t.Description,
+                    t.Status,
+                    t.CreatedByUPN,
+                    t.CreatedDate,
+                    FortiGate = new
+                    {
+                        t.FortiGate.FGHostname,
+                        FTAService = new
+                        {
+                            t.FortiGate.FTAService.JobID,
+                            Customer = new
+                            {
+                                t.FortiGate.FTAService.Customer.CustomerName
+                            }
+                        }
+                    },
+                    LogCount = _context.TrafficLogs.Count(l => l.TrafficAnalysisID == t.TrafficAnalysisID),
+                    RecommendationCount = _context.TrafficAnalysisRecommendations.Count(r => r.TrafficAnalysisID == t.TrafficAnalysisID)
+                })
                 .OrderByDescending(t => t.CreatedDate)
                 .ToListAsync();
 
-            return View(analyses);
+            // Map to view models
+            var viewModels = analyses.Select(a => new TrafficAnalysis
+            {
+                TrafficAnalysisID = a.TrafficAnalysisID,
+                TicketNumber = a.TicketNumber,
+                Summary = a.Summary,
+                Description = a.Description,
+                Status = a.Status,
+                CreatedByUPN = a.CreatedByUPN,
+                CreatedDate = a.CreatedDate,
+                FortiGate = new FortiGate
+                {
+                    FGHostname = a.FortiGate.FGHostname,
+                    FTAService = new FTAService
+                    {
+                        JobID = a.FortiGate.FTAService.JobID,
+                        Customer = new Customer
+                        {
+                            CustomerName = a.FortiGate.FTAService.Customer.CustomerName
+                        }
+                    }
+                },
+                TrafficLogs = Enumerable.Repeat(new TrafficLog(), a.LogCount).ToList(), // Fake list for count
+                Recommendations = Enumerable.Repeat(new TrafficAnalysisRecommendation(), a.RecommendationCount).ToList() // Fake list for count
+            }).ToList();
+
+            return View(viewModels);
         }
 
         // GET: TrafficAnalysis/Create
@@ -122,14 +175,103 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
             if (id == null)
                 return NotFound();
 
+            // Optimized query - only load basic info, not all logs
             var analysis = await _context.TrafficAnalyses
                 .Include(t => t.FortiGate)
                     .ThenInclude(f => f.FTAService)
                         .ThenInclude(s => s.Customer)
                 .Include(t => t.Customer)
                 .Include(t => t.FTAService)
-                .Include(t => t.TrafficLogs)
-                .Include(t => t.Recommendations)
+                .Select(t => new
+                {
+                    t.TrafficAnalysisID,
+                    t.TicketNumber,
+                    t.Summary,
+                    t.Description,
+                    t.Status,
+                    t.CreatedByUPN,
+                    t.CreatedDate,
+                    t.FGID,
+                    t.FTAID,
+                    t.CustomerID,
+                    FortiGate = new
+                    {
+                        t.FortiGate.FGHostname,
+                        t.FortiGate.FGHost,
+                        FTAService = new
+                        {
+                            t.FortiGate.FTAService.JobID,
+                            Customer = new
+                            {
+                                t.FortiGate.FTAService.Customer.CustomerName
+                            }
+                        }
+                    },
+                    LogCount = _context.TrafficLogs.Count(l => l.TrafficAnalysisID == t.TrafficAnalysisID),
+                    RecommendationCount = _context.TrafficAnalysisRecommendations.Count(r => r.TrafficAnalysisID == t.TrafficAnalysisID)
+                })
+                .FirstOrDefaultAsync(m => m.TrafficAnalysisID == id);
+
+            if (analysis == null)
+                return NotFound();
+
+            // Get the full entity for authorization check
+            var fullAnalysis = await _context.TrafficAnalyses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TrafficAnalysisID == id);
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && fullAnalysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Forbid();
+            }
+
+            // Map to view model
+            var viewModel = new TrafficAnalysis
+            {
+                TrafficAnalysisID = analysis.TrafficAnalysisID,
+                TicketNumber = analysis.TicketNumber,
+                Summary = analysis.Summary,
+                Description = analysis.Description,
+                Status = analysis.Status,
+                CreatedByUPN = analysis.CreatedByUPN,
+                CreatedDate = analysis.CreatedDate,
+                FGID = analysis.FGID,
+                FortiGate = new FortiGate
+                {
+                    FGHostname = analysis.FortiGate.FGHostname,
+                    FGHost = analysis.FortiGate.FGHost,
+                    FTAService = new FTAService
+                    {
+                        JobID = analysis.FortiGate.FTAService.JobID,
+                        Customer = new Customer
+                        {
+                            CustomerName = analysis.FortiGate.FTAService.Customer.CustomerName
+                        }
+                    }
+                },
+                TrafficLogs = new List<TrafficLog>(), // Empty list - logs loaded via AJAX
+                Recommendations = new List<TrafficAnalysisRecommendation>() // Empty list
+            };
+
+            // Pass counts via ViewBag
+            ViewBag.LogCount = analysis.LogCount;
+            ViewBag.RecommendationCount = analysis.RecommendationCount;
+
+            return View(viewModel);
+        }
+
+        // GET: TrafficAnalysis/Analyze/5
+        public async Task<IActionResult> Analyze(Guid? id)
+        {
+            if (id == null)
+                return NotFound();
+
+            var analysis = await _context.TrafficAnalyses
+                .Include(t => t.FortiGate)
+                    .ThenInclude(f => f.FTAService)
+                        .ThenInclude(s => s.Customer)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.TrafficAnalysisID == id);
 
             if (analysis == null)
@@ -304,6 +446,304 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Ticket status updated to '{status}'.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        // GET: TrafficAnalysis/ViewConfig/5
+        public async Task<IActionResult> ViewConfig(Guid? id)
+        {
+            if (id == null)
+                return NotFound();
+
+            var analysis = await _context.TrafficAnalyses
+                .Include(t => t.FortiGate)
+                .FirstOrDefaultAsync(t => t.TrafficAnalysisID == id);
+
+            if (analysis == null)
+                return NotFound();
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Forbid();
+            }
+
+            if (string.IsNullOrEmpty(analysis.FortiGate?.ConfigFile))
+            {
+                TempData["ErrorMessage"] = "No configuration file uploaded for this FortiGate.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // Return as plain text for viewing
+            return Content(analysis.FortiGate.ConfigFile, "text/plain");
+        }
+
+        // GET: TrafficAnalysis/ConfigDiagnostics/5
+        [HttpGet]
+        public async Task<IActionResult> ConfigDiagnostics(Guid? id)
+        {
+            if (id == null)
+                return NotFound();
+
+            var analysis = await _context.TrafficAnalyses
+                .Include(t => t.FortiGate)
+                .FirstOrDefaultAsync(t => t.TrafficAnalysisID == id);
+
+            if (analysis == null)
+                return NotFound();
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Forbid();
+            }
+
+            var fortiGate = analysis.FortiGate;
+            
+            if (fortiGate == null)
+            {
+                return Json(new { success = false, message = "FortiGate not found" });
+            }
+
+            // Get diagnostics
+            var decompressedConfig = fortiGate.ConfigFile;
+            var decompressedLines = decompressedConfig?.Split('\n') ?? Array.Empty<string>();
+            
+            // Calculate checksum of decompressed data
+            string currentChecksum = null;
+            if (decompressedConfig != null)
+            {
+                using (var sha256 = System.Security.Cryptography.SHA256.Create())
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(decompressedConfig);
+                    var hash = sha256.ComputeHash(bytes);
+                    currentChecksum = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+                }
+            }
+            
+            var diagnostics = new
+            {
+                success = true,
+                fortiGateHostname = fortiGate.FGHostname,
+                configUploadedDate = fortiGate.ConfigUploadedDate,
+                
+                // Compressed data info
+                hasCompressedData = fortiGate.ConfigFileCompressed != null,
+                compressedSizeBytes = fortiGate.ConfigFileCompressed?.Length ?? 0,
+                compressedSizeKB = (fortiGate.ConfigFileCompressed?.Length ?? 0) / 1024.0,
+                compressedFirstBytes = fortiGate.ConfigFileCompressed != null && fortiGate.ConfigFileCompressed.Length > 10
+                    ? BitConverter.ToString(fortiGate.ConfigFileCompressed.Take(10).ToArray()).Replace("-", " ")
+                    : null,
+                isValidGzip = fortiGate.ConfigFileCompressed != null && fortiGate.ConfigFileCompressed.Length >= 2
+                    ? fortiGate.ConfigFileCompressed[0] == 0x1F && fortiGate.ConfigFileCompressed[1] == 0x8B
+                    : false,
+                
+                // Decompressed data info
+                decompressedSuccessfully = decompressedConfig != null,
+                decompressedSizeBytes = decompressedConfig?.Length ?? 0,
+                decompressedSizeKB = (decompressedConfig?.Length ?? 0) / 1024.0,
+                lineCount = decompressedLines.Length,
+                compressionRatio = decompressedConfig != null && fortiGate.ConfigFileCompressed != null
+                    ? (fortiGate.ConfigFileCompressed.Length * 100.0 / decompressedConfig.Length)
+                    : 0,
+                
+                // Content validation
+                hasConfigKeyword = decompressedConfig?.Contains("config") ?? false,
+                hasEndKeyword = decompressedConfig?.Contains("end") ?? false,
+                hasSystemSection = decompressedConfig?.Contains("config system") ?? false,
+                hasFirewallSection = decompressedConfig?.Contains("config firewall") ?? false,
+                hasSdwanSection = decompressedConfig?.Contains("config system sdwan") ?? false,
+                
+                // Sample content
+                firstLines = decompressedLines.Take(10).ToList(),
+                lastLines = decompressedLines.TakeLast(10).ToList(),
+                
+                // Integrity
+                checksum = currentChecksum?.Substring(0, 16) + "...",
+                
+                // Truncation detection
+                endsWithEnd = decompressedLines.LastOrDefault()?.Trim() == "end",
+                hasCompleteStructure = decompressedConfig?.Count(c => c == '{') == decompressedConfig?.Count(c => c == '}'),
+                
+                // Size comparison
+                expectedMinSize = 50000, // Configs are typically > 50KB
+                isSuspiciouslySmall = (decompressedConfig?.Length ?? 0) < 50000,
+                
+                // Detailed stats
+                configSections = CountConfigSections(decompressedConfig),
+                
+                warning = (decompressedConfig?.Length ?? 0) < 50000 
+                    ? "?? Config file seems suspiciously small. May be truncated."
+                    : decompressedLines.LastOrDefault()?.Trim() != "end"
+                    ? "?? Config doesn't end with 'end' keyword. May be truncated."
+                    : null
+            };
+
+            return Json(diagnostics);
+        }
+        
+        private Dictionary<string, int> CountConfigSections(string config)
+        {
+            if (string.IsNullOrEmpty(config))
+                return new Dictionary<string, int>();
+                
+            return new Dictionary<string, int>
+            {
+                ["interfaces"] = System.Text.RegularExpressions.Regex.Matches(config, @"config system interface").Count,
+                ["addresses"] = System.Text.RegularExpressions.Regex.Matches(config, @"config firewall address\b").Count,
+                ["policies"] = System.Text.RegularExpressions.Regex.Matches(config, @"config firewall policy").Count,
+                ["services"] = System.Text.RegularExpressions.Regex.Matches(config, @"config firewall service").Count,
+                ["sdwan"] = System.Text.RegularExpressions.Regex.Matches(config, @"config system sdwan").Count,
+                ["routes"] = System.Text.RegularExpressions.Regex.Matches(config, @"config router static").Count,
+                ["vpn"] = System.Text.RegularExpressions.Regex.Matches(config, @"config vpn").Count,
+            };
+        }
+
+        // POST: TrafficAnalysis/UploadConfigFile
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadConfigFile(Guid id, IFormFile configFile)
+        {
+            var analysis = await _context.TrafficAnalyses
+                .Include(t => t.FortiGate)
+                .FirstOrDefaultAsync(t => t.TrafficAnalysisID == id);
+
+            if (analysis == null)
+                return NotFound();
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Forbid();
+            }
+
+            if (configFile == null || configFile.Length == 0)
+            {
+                TempData["ErrorMessage"] = "Please select a configuration file to upload.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // Validate file extension
+            var allowedExtensions = new[] { ".conf", ".cfg", ".txt" };
+            var fileExtension = Path.GetExtension(configFile.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(fileExtension))
+            {
+                TempData["ErrorMessage"] = "Invalid file type. Only .conf, .cfg, and .txt files are allowed.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // Validate file size (max 10MB)
+            if (configFile.Length > 10 * 1024 * 1024)
+            {
+                TempData["ErrorMessage"] = "File size exceeds the maximum limit of 10MB.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            try
+            {
+                string configContent;
+                
+                using (var reader = new StreamReader(configFile.OpenReadStream(), System.Text.Encoding.UTF8))
+                {
+                    configContent = await reader.ReadToEndAsync();
+                }
+
+                // Validate file is not empty
+                if (string.IsNullOrWhiteSpace(configContent))
+                {
+                    TempData["ErrorMessage"] = "The configuration file is empty.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
+
+                // Normalize line endings (handles Windows/Linux/Mac formats)
+                configContent = configContent.Replace("\r\n", "\n").Replace("\r", "\n");
+
+                // Validate it looks like a FortiGate config
+                if (!configContent.Contains("config") || !configContent.Contains("end"))
+                {
+                    TempData["ErrorMessage"] = "This doesn't appear to be a valid FortiGate configuration file.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
+
+                // Calculate checksum for integrity verification
+                var originalLength = configContent.Length;
+                var originalLines = configContent.Split('\n').Length;
+                var originalChecksum = CalculateSHA256(configContent);
+
+                // Get file size info for logging
+                var sizeKB = configContent.Length / 1024.0;
+
+                _logger.LogInformation(
+                    "Config file parsed: {Lines} lines, {Size:F2} KB, SHA256: {Checksum}",
+                    originalLines, sizeKB, originalChecksum.Substring(0, 16) + "...");
+
+                // Check if file is too large (> 5MB might cause issues)
+                if (configContent.Length > 5 * 1024 * 1024)
+                {
+                    _logger.LogWarning(
+                        "Large config file detected: {Size:F2} MB. This may affect AI performance.",
+                        configContent.Length / (1024.0 * 1024.0));
+                    
+                    TempData["WarningMessage"] = 
+                        $"Configuration file is large ({sizeKB / 1024:F2} MB). " +
+                        "AI will use a subset of the configuration for analysis.";
+                }
+
+                // Update FortiGate entity
+                var fortiGate = await _context.FortiGates.FindAsync(analysis.FGID);
+                if (fortiGate != null)
+                {
+                    // Save config (will be automatically compressed by the property setter)
+                    fortiGate.ConfigFile = configContent;
+                    fortiGate.ConfigUploadedDate = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+
+                    // Verify integrity by reading back
+                    var savedConfig = fortiGate.ConfigFile;
+                    var savedChecksum = CalculateSHA256(savedConfig ?? "");
+                    var integrityCheck = originalChecksum == savedChecksum;
+
+                    if (!integrityCheck)
+                    {
+                        _logger.LogError(
+                            "Config integrity check FAILED! Original: {Original}, Saved: {Saved}",
+                            originalChecksum.Substring(0, 16), savedChecksum.Substring(0, 16));
+                        
+                        TempData["ErrorMessage"] = 
+                            "Configuration file upload failed integrity check. Please try again.";
+                        
+                        // Rollback
+                        fortiGate.ConfigFile = null;
+                        fortiGate.ConfigUploadedDate = null;
+                        await _context.SaveChangesAsync();
+                        
+                        return RedirectToAction(nameof(Details), new { id });
+                    }
+
+                    _logger.LogInformation(
+                        "Config integrity verified: {Lines} lines preserved, Checksum match: {Match}",
+                        originalLines, integrityCheck);
+
+                    TempData["SuccessMessage"] = 
+                        $"Configuration file uploaded successfully! " +
+                        $"({originalLines:N0} lines, {sizeKB:F2} KB) " +
+                        $"? Integrity verified";
+                    
+                    _logger.LogInformation(
+                        "Config file uploaded for FortiGate {FGID} by {User}. " +
+                        "Original: {OrigSize} bytes, Compressed: {CompSize} bytes, Ratio: {Ratio:F1}%",
+                        fortiGate.FGID, User.Identity?.Name, 
+                        originalLength,
+                        fortiGate.ConfigFileCompressed?.Length ?? 0,
+                        (fortiGate.ConfigFileCompressed?.Length ?? 0) * 100.0 / originalLength);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading config file for ticket {TicketID}", analysis.TrafficAnalysisID);
+                TempData["ErrorMessage"] = $"Error processing configuration file: {ex.Message}";
+            }
+
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -525,6 +965,35 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
             });
         }
 
+        // POST: TrafficAnalysis/GetLogsByIds
+        [HttpPost]
+        public async Task<IActionResult> GetLogsByIds([FromBody] GetLogsByIdsRequest request)
+        {
+            if (request.LogIds == null || !request.LogIds.Any())
+            {
+                return Json(new { success = false, message = "No log IDs provided" });
+            }
+
+            var logs = await _context.TrafficLogs
+                .Where(l => request.LogIds.Contains(l.TrafficLogID) && l.TrafficAnalysisID == request.TicketId)
+                .Select(l => new
+                {
+                    l.TrafficLogID,
+                    l.LogDate,
+                    l.LogTime,
+                    l.SrcIP,
+                    l.SrcPort,
+                    l.DstIP,
+                    l.DstPort,
+                    l.Proto,
+                    l.Action,
+                    l.Service
+                })
+                .ToListAsync();
+
+            return Json(new { success = true, logs = logs });
+        }
+
         // POST: TrafficAnalysis/AnalyzeSelected
         [HttpPost]
         public async Task<IActionResult> AnalyzeSelected(Guid id, [FromBody] List<Guid> logIds)
@@ -599,6 +1068,117 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
             }
         }
 
+        // POST: TrafficAnalysis/AskAI
+        [HttpPost]
+        public async Task<IActionResult> AskAI(Guid id, [FromBody] AIQuestionRequest request)
+        {
+            _logger.LogInformation("AskAI called for ticket {TicketID}: {Question}",
+                id, request?.Question);
+
+            if (request == null || string.IsNullOrWhiteSpace(request.Question))
+            {
+                return Json(new { success = false, message = "Question cannot be empty" });
+            }
+
+            if (request.SelectedLogIds == null || !request.SelectedLogIds.Any())
+            {
+                return Json(new { success = false, message = "Please select at least one log entry" });
+            }
+
+            var analysis = await _context.TrafficAnalyses.FindAsync(id);
+            if (analysis == null)
+            {
+                return Json(new { success = false, message = "Ticket not found" });
+            }
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Json(new { success = false, message = "Unauthorized access" });
+            }
+
+            try
+            {
+                // Get selected logs
+                var selectedLogs = await _context.TrafficLogs
+                    .Where(l => request.SelectedLogIds.Contains(l.TrafficLogID) &&
+                                l.TrafficAnalysisID == id)
+                    .ToListAsync();
+
+                if (!selectedLogs.Any())
+                {
+                    return Json(new { success = false, message = "Selected logs not found" });
+                }
+
+                _logger.LogInformation("Processing AI question for {Count} logs", selectedLogs.Count);
+
+                // Call AI service
+                var aiResponse = await _aiService.AskQuestionAsync(
+                    id,
+                    request.Question,
+                    selectedLogs,
+                    User.Identity?.Name ?? "Unknown");
+
+                return Json(new
+                {
+                    success = true,
+                    response = aiResponse,
+                    logsAnalyzed = selectedLogs.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing AI question for ticket {TicketID}", id);
+                return Json(new
+                {
+                    success = false,
+                    message = "AI service temporarily unavailable. Please try again later."
+                });
+            }
+        }
+
+        // GET: TrafficAnalysis/GetConversationHistory/5
+        [HttpGet]
+        public async Task<IActionResult> GetConversationHistory(Guid id)
+        {
+            var analysis = await _context.TrafficAnalyses.FindAsync(id);
+            if (analysis == null)
+            {
+                return Json(new { success = false, message = "Ticket not found" });
+            }
+
+            // Authorization check
+            if (!User.IsInRole("Admins") && analysis.CreatedByUPN != User.Identity?.Name)
+            {
+                return Json(new { success = false, message = "Unauthorized" });
+            }
+
+            try
+            {
+                var conversations = await _aiService.GetConversationHistoryAsync(id);
+
+                return Json(new
+                {
+                    success = true,
+                    conversations = conversations.Select(c => new
+                    {
+                        c.ConversationID,
+                        c.UserQuestion,
+                        c.AIResponse,
+                        c.CreatedByUPN,
+                        c.CreatedDate,
+                        c.TokensUsed,
+                        c.ResponseTimeMs
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving conversation history for ticket {TicketID}", id);
+                return Json(new { success = false, message = "Error loading conversation history" });
+            }
+        }
+
         // GET: TrafficAnalysis/Delete/5
         [Authorize(Policy = AuthorizationPolicies.RequireAdminRole)]
         public async Task<IActionResult> Delete(Guid? id)
@@ -664,5 +1244,29 @@ namespace FortiTrafficAnalysis.WebGui.Controllers
 
             return ticketNumber;
         }
+
+        private string CalculateSHA256(string input)
+        {
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+                var hash = sha256.ComputeHash(bytes);
+                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            }
+        }
+    }
+
+    // Request model for AI questions
+    public class AIQuestionRequest
+    {
+        public string Question { get; set; } = string.Empty;
+        public List<Guid> SelectedLogIds { get; set; } = new List<Guid>();
+    }
+
+    // Request model for GetLogsByIds
+    public class GetLogsByIdsRequest
+    {
+        public Guid TicketId { get; set; }
+        public List<Guid> LogIds { get; set; } = new List<Guid>();
     }
 }

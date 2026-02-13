@@ -175,25 +175,127 @@ Then create and apply a new migration.
 
 ---
 
-## Next Steps After Azure AD is Working
+## Step 8: Configure Azure OpenAI for AI-Powered Recommendations (Optional)
 
-Once authentication is working, we'll proceed to:
+To enable AI-powered traffic analysis and interactive Q&A features, follow these steps:
+
+### 8.1: Create Azure OpenAI Service
+
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Click **"+ Create a resource"**
+3. Search for **"Azure OpenAI"** and click **Create**
+
+**Configuration:**
+- **Subscription:** Your subscription
+- **Resource Group:** `rg-fortitraffic-prod`
+- **Region:** `East US` or `Sweden Central` (GPT-4 Turbo available)
+- **Name:** `openai-fortitraffic-prod`
+- **Pricing Tier:** Standard S0
+
+4. Click **Review + Create** ? **Create**
+5. Wait 3-5 minutes for deployment
+
+### 8.2: Deploy GPT-4 Turbo Model
+
+1. Navigate to your Azure OpenAI resource
+2. Click **"Go to Azure OpenAI Studio"** (or visit https://oai.azure.com/)
+3. In the left menu, click **"Deployments"**
+4. Click **"+ Create new deployment"**
+
+**Deployment Configuration:**
+- **Select model:** `gpt-4`
+- **Model version:** `turbo-2024-04-09` (or latest turbo version)
+- **Deployment name:** `gpt-4-turbo-fortitraffic`
+- **Deployment type:** Standard
+- **Tokens per Minute Rate Limit:** 20000
+
+5. Click **Create**
+6. Wait 1-2 minutes for deployment
+
+### 8.3: Get API Credentials
+
+1. Return to Azure Portal ? Your OpenAI resource
+2. Go to **"Keys and Endpoint"** (left menu)
+3. Copy and save securely:
+   - **KEY 1:** `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+   - **Endpoint:** `https://openai-fortitraffic-prod.openai.azure.com/`
+
+### 8.4: Update appsettings.json for AI
+
+Add the Azure OpenAI configuration section:
+
+```json
+{
+  "AzureAd": {
+    ...existing...
+  },
+  "AzureOpenAI": {
+    "Endpoint": "https://openai-fortitraffic-prod.openai.azure.com/",
+    "DeploymentName": "gpt-4-turbo-fortitraffic",
+    "ApiVersion": "2024-02-01",
+    "MaxTokens": 2000,
+    "Temperature": 0.3
+  },
+  "ConnectionStrings": {
+    ...existing...
+  }
+}
+```
+
+### 8.5: Add API Key to Development Settings
+
+For local development, add to `appsettings.Development.json`:
+
+```json
+{
+  "AzureOpenAI": {
+    "ApiKey": "YOUR_KEY_1_FROM_STEP_8.3"
+  },
+  "Logging": {
+    ...existing...
+  }
+}
+```
+
+?? **IMPORTANT:** Never commit the API key to source control!
+
+### 8.6: Test Azure OpenAI Deployment
+
+1. In Azure OpenAI Studio ? **"Chat"** playground
+2. Select: `gpt-4-turbo-fortitraffic`
+3. Test prompt:
+   ```
+   You are a FortiGate expert. Create a policy to allow HTTPS 
+   traffic from 192.168.1.0/24 to 10.0.0.5.
+   ```
+4. ? Verify you get FortiGate CLI commands
+
+### 8.7: Cost Monitoring
+
+**Expected Monthly Costs (GPT-4 Turbo):**
+- Low (50 queries): $2-5
+- Medium (500 queries): $20-40
+- High (2000 queries): $80-100
+
+**Set up alerts:**
+- Azure Portal ? Cost Management ? Create Budget ($50/month)
+- Alert at 80% threshold
+
+### 8.8: Install NuGet Packages
+
+```powershell
+cd src/FortiTrafficAnalysis.Services
+dotnet add package Azure.AI.OpenAI --version 1.0.0-beta.12
+dotnet add package Azure.Identity --version 1.10.4
+```
+
+---
+
+## Next Steps After Azure AD and OpenAI are Working
 
 1. ? **STEP 5:** Create Admin Controllers and Views
-   - AppUsers management
-   - Customers management
-   - FTAServices management
-   - FortiGates management
-
-2. ? **STEP 6:** Create User/Traffic Analysis Module
-   - Log upload functionality
-   - Traffic log viewer with filters
-   - Policy recommendation engine
-
+2. ? **STEP 6:** Create Traffic Analysis Module with AI
 3. ? **STEP 7:** Create Web API Controllers
-   - Log processing endpoints
-   - Query/filter endpoints
-   - Recommendation endpoints
 
 ---
 

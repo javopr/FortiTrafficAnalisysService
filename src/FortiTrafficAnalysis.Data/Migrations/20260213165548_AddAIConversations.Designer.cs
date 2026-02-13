@@ -4,6 +4,7 @@ using FortiTrafficAnalysis.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FortiTrafficAnalysis.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260213165548_AddAIConversations")]
+    partial class AddAIConversations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -203,12 +206,6 @@ namespace FortiTrafficAnalysis.Data.Migrations
                     b.Property<Guid>("FGID")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<byte[]>("ConfigFileCompressed")
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<DateTime?>("ConfigUploadedDate")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("FGHost")
                         .IsRequired()
